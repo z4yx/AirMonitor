@@ -1,8 +1,9 @@
 #include "uip.h"
 #include "enc28j60.h"
+#include "configure.h"
 
 extern struct uip_eth_addr uip_ethaddr;
-static uint8_t mac_addr[6] = {0x54, 0x55, 0x58, 0x10, 0x00, 0x22};
+static uint8_t mac_addr[6] = ETH_MAC_ADDR;
 
 /*---------------------------------------------------------------------------*/
 void

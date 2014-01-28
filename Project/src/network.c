@@ -23,6 +23,7 @@
 
 #include "common.h"
 #include "enc28j60.h"
+#include "configure.h"
 
 static struct timer periodic_timer, arp_timer;
 
@@ -31,17 +32,20 @@ static struct timer periodic_timer, arp_timer;
 void Network_Init()
 {
 	uip_ipaddr_t ipaddr;
+	uint8_t ip[4] = ETH_IP_ADDR;
+	uint8_t nm[4] = ETH_NETMASK;
+	uint8_t gw[4] = ETH_GW_ADDR;
 
 	tapdev_init();
 	DBG_MSG("Chip Rev: %d", (int)enc28j60getrev());
 
 	uip_init();
 
-	uip_ipaddr(ipaddr, 192,168,1,8);
+	uip_ipaddr(ipaddr, ip[0], ip[1], ip[2], ip[3]);
 	uip_sethostaddr(ipaddr);
-	uip_ipaddr(ipaddr, 192,168,1,1);
+	uip_ipaddr(ipaddr, gw[0], gw[1], gw[2], gw[3]);
 	uip_setdraddr(ipaddr);
-	uip_ipaddr(ipaddr, 255,255,255,0);
+	uip_ipaddr(ipaddr, nm[0], nm[1], nm[2], nm[3]);
 	uip_setnetmask(ipaddr);
 
     timer_set(&periodic_timer, CLOCK_SECOND / 10);

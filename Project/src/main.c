@@ -21,19 +21,22 @@
 #include "usart.h"
 #include "systick.h"
 #include "pwmOutput.h"
+#include "spi.h"
 #include "adc.h"
 #include "sht1x.h"
 #include "gp2y1010.h"
+#include "network.h"
 #include <stdlib.h>
 #include <string.h>
 
-// const Task_t SystemTasks[] = { Network_Task };
+const Task_t SystemTasks[] = { Network_Task };
 
 
 static void periphInit(void)
 {
 	SHT1x_Config();
 	GP2Y1010_Init();
+	Network_Init();
 }
 
 void useHSIClock(void)
@@ -89,34 +92,36 @@ int main(void)
 
 	periphInit();
 
+	hello_world_init();
+
 	SysTick_t last_report = 0;
 	while (1)
 	{
 
 		//运行系统中声明的任务
-		// for(int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++)
-		// 	(SystemTasks[i])();
+		for(int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++)
+			(SystemTasks[i])();
 
 		SysTick_t now = GetSystemTick();
 		if(now - last_report > 1000){
 			last_report = now;
 
-			int air = GP2Y1010_Measure();
-			DBG_MSG("Air: %d", air);
+			// int air = GP2Y1010_Measure();
+			// DBG_MSG("Air: %d", air);
 			
-			float temp, humi;
-			char str[16];
-			if(SHT1x_MeasureTemp(&temp) == 0){
-				sprintf(str, "%.2f℃", temp);
-				DBG_MSG("temp: %s", str);
+			// float temp, humi;
+			// char str[16];
+			// if(SHT1x_MeasureTemp(&temp) == 0){
+			// 	sprintf(str, "%.2f℃", temp);
+			// 	DBG_MSG("temp: %s", str);
 
-				if(SHT1x_MeasureHumi(&humi, temp) == 0){
-					sprintf(str, "%.2f%%", humi);
-					DBG_MSG("humi: %s", str);
-				}
-			}else{
-				DBG_MSG("failed", 0);
-			}
+			// 	if(SHT1x_MeasureHumi(&humi, temp) == 0){
+			// 		sprintf(str, "%.2f%%", humi);
+			// 		DBG_MSG("humi: %s", str);
+			// 	}
+			// }else{
+			// 	DBG_MSG("failed", 0);
+			// }
 		}
 
 	}

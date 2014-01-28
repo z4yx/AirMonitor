@@ -34,12 +34,12 @@
 #define SHT_DATA GPIO_Pin_9
 
 #define ETH_PORT GPIOB
-#define ETH_RST GPIO_Pin_10
-#define ETH_INT GPIO_Pin_11
+// #define ETH_RST GPIO_Pin_10
+// #define ETH_INT GPIO_Pin_11
 #define ETH_CS GPIO_Pin_12
-#define ETH_SCK GPIO_Pin_13
-#define ETH_MISO GPIO_Pin_14
-#define ETH_MOSI GPIO_Pin_15
-
+// #define ETH_SCK GPIO_Pin_13
+// #define ETH_MISO GPIO_Pin_14
+// #define ETH_MOSI GPIO_Pin_15
+#define ETH_SPI SPI2
 
 #endif

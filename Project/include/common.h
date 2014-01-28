@@ -56,5 +56,6 @@ typedef void (*Task_t)(void);
 
 //系统中所有的任务函数
 void Network_Task(void);
+void Yeelink_Task(void);
 
 #endif /* __COMMON__H__ */

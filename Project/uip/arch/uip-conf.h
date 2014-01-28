@@ -90,21 +90,21 @@ typedef unsigned short uip_stats_t;
  *
  * \hideinitializer
  */
-#define UIP_CONF_MAX_CONNECTIONS 40
+#define UIP_CONF_MAX_CONNECTIONS 6
 
 /**
  * Maximum number of listening TCP ports.
  *
  * \hideinitializer
  */
-#define UIP_CONF_MAX_LISTENPORTS 40
+#define UIP_CONF_MAX_LISTENPORTS 4
 
 /**
  * uIP buffer size.
  *
  * \hideinitializer
  */
-#define UIP_CONF_BUFFER_SIZE     420
+#define UIP_CONF_BUFFER_SIZE     4094
 
 /**
  * CPU byte order.
@@ -125,7 +125,7 @@ typedef unsigned short uip_stats_t;
  *
  * \hideinitializer
  */
-#define UIP_CONF_UDP             0
+#define UIP_CONF_UDP             1
 
 /**
  * UDP checksums on or off
@@ -144,12 +144,12 @@ typedef unsigned short uip_stats_t;
 /* Here we include the header file for the application(s) we use in
    our project. */
 /*#include "smtp.h"*/
-#include "hello-world.h"
+// #include "hello-world.h"
 /*#include "telnetd.h"*/
 // #include "webserver.h"
 /*#include "dhcpc.h"*/
-/*#include "resolv.h"*/
-/*#include "webclient.h"*/
+#include "resolv.h"
+#include "webclient.h"
 
 #endif /* __UIP_CONF_H__ */
 

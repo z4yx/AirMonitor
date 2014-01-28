@@ -29,7 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-const Task_t SystemTasks[] = { Network_Task };
+const Task_t SystemTasks[] = { Network_Task, Yeelink_Task };
 
 
 static void periphInit(void)
@@ -92,7 +92,7 @@ int main(void)
 
 	periphInit();
 
-	hello_world_init();
+	Yeelink_Init();
 
 	SysTick_t last_report = 0;
 	while (1)
@@ -103,8 +103,10 @@ int main(void)
 			(SystemTasks[i])();
 
 		SysTick_t now = GetSystemTick();
-		if(now - last_report > 1000){
+		if(now - last_report > 5000){
 			last_report = now;
+
+			Yeelink_Send();
 
 			// int air = GP2Y1010_Measure();
 			// DBG_MSG("Air: %d", air);

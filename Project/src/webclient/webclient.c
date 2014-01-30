@@ -81,6 +81,7 @@
 
 
 extern const char *http_appkey;
+const char *http_content_type_urlencode = "Content-Type: application/x-www-form-urlencoded\r\n";
 
 static struct webclient_state s;
 
@@ -120,13 +121,14 @@ init_connection(void)
 {
   s.state = WEBCLIENT_STATE_STATUSLINE;
 
-  s.getrequestleft = sizeof(http_get) - 1 + 1 +
+  s.getrequestleft = strlen(s.method) + 1 + 1 +
     sizeof(http_10) - 1 +
     sizeof(http_crnl) - 1 +
     sizeof(http_host) - 1 +
     sizeof(http_crnl) - 1 +
     strlen(http_appkey) +
     strlen(http_user_agent_fields) +
+    (s.body ? strlen(s.body)+strlen(s.content_length)+strlen(http_content_type_urlencode) : 0) +
     strlen(s.file) + strlen(s.host);
   s.getrequestptr = 0;
 
@@ -140,7 +142,7 @@ webclient_close(void)
 }
 /*-----------------------------------------------------------------------------------*/
 unsigned char
-webclient_get(char *host, u16_t port, char *file)
+webclient_get(char *host, u16_t port, char *file, const char *post_body)
 {
   struct uip_conn *conn;
   uip_ipaddr_t *ipaddr;
@@ -165,6 +167,14 @@ webclient_get(char *host, u16_t port, char *file)
   s.port = port;
   strncpy(s.file, file, sizeof(s.file));
   strncpy(s.host, host, sizeof(s.host));
+  s.body = post_body;
+  if(post_body) {
+    s.method = "POST";
+    sprintf(s.content_length, "Content-Length: %d\r\n", strlen(post_body));
+  }else {
+    s.method = "GET";
+    s.content_length[0] = '\0';
+  }
   
   init_connection();
   return 1;
@@ -188,7 +198,8 @@ senddata(void)
   if(s.getrequestleft > 0) {
     cptr = getrequest = (char *)uip_appdata;
 
-    cptr = copy_string(cptr, http_get, sizeof(http_get) - 1);
+    cptr = copy_string(cptr, s.method, strlen(s.method));
+    *cptr++ = ISO_space;
     cptr = copy_string(cptr, s.file, strlen(s.file));
     *cptr++ = ISO_space;
     cptr = copy_string(cptr, http_10, sizeof(http_10) - 1);
@@ -199,10 +210,16 @@ senddata(void)
     cptr = copy_string(cptr, s.host, strlen(s.host));
     cptr = copy_string(cptr, http_crnl, sizeof(http_crnl) - 1);
 
+    if (s.body) {
+      cptr = copy_string(cptr, s.content_length, strlen(s.content_length));
+      cptr = copy_string(cptr, http_content_type_urlencode, strlen(http_content_type_urlencode));
+    }
     cptr = copy_string(cptr, http_appkey, strlen(http_appkey));
 
     cptr = copy_string(cptr, http_user_agent_fields,
 		       strlen(http_user_agent_fields));
+    if (s.body)
+      cptr = copy_string(cptr, s.body, strlen(s.body));
     
     len = s.getrequestleft > uip_mss()?
       uip_mss():
@@ -245,6 +262,8 @@ parse_statusline(u16_t len)
 	 (strncmp(s.httpheaderline, http_11,
 		  sizeof(http_11) - 1) == 0)) {
 	cptr = &(s.httpheaderline[9]);
+
+  webclient_statehandler((cptr[0]-'0')*100 + (cptr[1]-'0')*10 + (cptr[2]-'0'));
 	s.httpflag = HTTPFLAG_NONE;
 	if(strncmp(cptr, http_200, sizeof(http_200) - 1) == 0) {
 	  /* 200 OK */
@@ -442,7 +461,7 @@ webclient_appcall(void)
       if(resolv_lookup(s.host) == NULL) {
 	resolv_query(s.host);
       }
-      webclient_get(s.host, s.port, s.file);
+      webclient_get(s.host, s.port, s.file, s.body);
     }
   }
 }

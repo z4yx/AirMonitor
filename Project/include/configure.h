@@ -18,6 +18,6 @@
 #define YEELINK_HUMI_SENSOR   "/v1.0/device/5992/sensor/11570/datapoints"
 #define YEELINK_AIR_SENSOR    "/v1.0/device/5992/sensor/11572/datapoints"
 
-#define REPORT_INTERVAL  40000
+#define REPORT_INTERVAL  300000
 
 #endif

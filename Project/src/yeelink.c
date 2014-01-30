@@ -78,6 +78,11 @@ int Yeelink_Send(const char *datetime, int air, float temp, float humi)
 	return 0;
 }
 
+bool Yeelink_Idle(void)
+{
+	return STATE_IDLE == current_state;
+}
+
 void Yeelink_Task(void)
 {
 	if(net_waiting)

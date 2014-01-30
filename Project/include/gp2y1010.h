@@ -3,6 +3,7 @@
 
 void GP2Y1010_Init(void);
 int GP2Y1010_Measure(void);
+void GP2Y1010_Poweroff(void);
 
 void GP2Y1010_IntHandler(void);
 

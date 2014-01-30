@@ -49,6 +49,21 @@ void GP2Y1010_Init()
 	ADC_DMA_Init(adc_results, 2);
 
 	ADC_Prepare();
+
+	ADC_StartSingle();
+	Delay_us(200);
+	ADC_StartSingle();
+}
+
+void GP2Y1010_Poweroff()
+{
+	GPIO_InitTypeDef GPIO_InitStructure;
+
+	GPIO_InitStructure.GPIO_Pin = AIR_SENSOR_LED_PIN;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
+	GPIO_Init(AIR_SENSOR_LED_PORT, &GPIO_InitStructure);
+
+	TIM_Cmd(TIM2, DISABLE);
 }
 
 void GP2Y1010_IntHandler()

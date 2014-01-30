@@ -141,6 +141,9 @@ typedef unsigned short uip_stats_t;
  */
 #define UIP_CONF_STATISTICS      1
 
+/* udp_appcall defined in appcall.c */
+#define UIP_UDP_APPCALL udp_appcall
+
 /* Here we include the header file for the application(s) we use in
    our project. */
 /*#include "smtp.h"*/

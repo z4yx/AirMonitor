@@ -23,10 +23,24 @@
 
 const char *http_appkey = YEELINK_APPKEY_HDR;
 
-enum {STATE_IDLE, STATE_DNS_SENT, STATE_DNS_OK, STATE_HTTP_SENT};
+enum {STATE_IDLE, STATE_DNS, STATE_AIR, STATE_TEMP, STATE_HUMI};
 static int current_state;
 
+static bool net_waiting;
+
+static struct report_values {
+	const char *datetime;
+	int air;
+	float temp, humi;
+}values;
+
 static char dat_buf[128];
+
+const char* build_json(float val)
+{
+	sprintf(dat_buf, "{\"timestamp\":\"%s\",\"value\":%f}", values.datetime, val);
+	return dat_buf;
+}
 
 void Yeelink_Init()
 {
@@ -42,17 +56,23 @@ void Yeelink_Init()
 	current_state = STATE_IDLE;
 }
 
-int Yeelink_Send(void)
+int Yeelink_Send(const char *datetime, int air, float temp, float humi)
 {
 	if(current_state != STATE_IDLE)
 		return -1;
 
+	values.datetime = datetime;
+	values.air  = air;
+	values.temp = temp;
+	values.humi = humi;
+
+	current_state = STATE_DNS;
+
 	if(NULL == resolv_lookup(YEELINK_HOSTNAME)){
-	
-		current_state = STATE_DNS_SENT;
+		net_waiting = true;
 		resolv_query(YEELINK_HOSTNAME);
 	}else{
-		current_state = STATE_DNS_OK;
+		net_waiting = false;
 	}
 
 	return 0;
@@ -60,18 +80,28 @@ int Yeelink_Send(void)
 
 void Yeelink_Task(void)
 {
-	uint8_t ret;
-	static int test_day = 17, test_temp = 2;
+	if(net_waiting)
+		return;
+
 	switch(current_state)
 	{
-		case STATE_DNS_OK:
-			current_state = STATE_HTTP_SENT;
-			sprintf(dat_buf, "{\"timestamp\":\"2014-09-%dT16:13:14\",\"value\":%d}", test_day, test_temp);
-			test_day++;
-			test_temp++;
-			// ret = webclient_get("192.168.1.30", 1234, YEELINK_TEMP_SENSOR, "{\"timestamp\":\"2014-01-15T16:13:14\",\"value\":21.34}");
-			ret = webclient_get(YEELINK_HOSTNAME, 80, YEELINK_TEMP_SENSOR, dat_buf);
-			DBG_MSG("webclient_get()=%d", (int)ret);
+		case STATE_DNS:
+			current_state = STATE_AIR;
+			net_waiting = true;
+			webclient_get(YEELINK_HOSTNAME, 80, YEELINK_AIR_SENSOR, build_json(values.air));
+			break;
+		case STATE_AIR:
+			current_state = STATE_TEMP;
+			net_waiting = true;
+			webclient_get(YEELINK_HOSTNAME, 80, YEELINK_TEMP_SENSOR, build_json(values.temp));
+			break;
+		case STATE_TEMP:
+			current_state = STATE_HUMI;
+			net_waiting = true;
+			webclient_get(YEELINK_HOSTNAME, 80, YEELINK_HUMI_SENSOR, build_json(values.humi));
+			break;
+		case STATE_HUMI:
+			current_state = STATE_IDLE;
 			break;
 	}
 }
@@ -81,7 +111,6 @@ void webclient_statehandler(u16_t code)
 	DBG_MSG("response code: %d", (int)code);
 	if(code != 200){
 		webclient_close();
-		current_state = STATE_IDLE;
 	}
 }
 
@@ -105,39 +134,35 @@ void webclient_datahandler(char *data, u16_t len)
 		}
 		DBG_MSG("%s", dat_buf);
 	}
-	if(current_state != STATE_HTTP_SENT)
-		return;
-	if(len == 0){
+	if(len == 0)
 		webclient_close();
-		current_state = STATE_IDLE;
-	}
 }
 
 void resolv_found(char *name, u16_t *ipaddr)
 {
 	if(name && 0==strcmp(name, YEELINK_HOSTNAME)) {
 		DBG_MSG("name:%s, ip:%d", name, (int)*ipaddr);
-		if(current_state == STATE_DNS_SENT)
-			current_state = STATE_DNS_OK;
+		if(current_state == STATE_DNS)
+			net_waiting = false;
 	}
 }
 
 void webclient_aborted(void)
 {
 	DBG_MSG("aborted", 0);
-	current_state = STATE_IDLE;
+	net_waiting = false;
 }
 
 void webclient_closed(void)
 {
 	DBG_MSG("closed", 0);
-	current_state = STATE_IDLE;
+	net_waiting = false;
 }
 
 void webclient_timedout(void)
 {
 	DBG_MSG("timedout", 0);
-	current_state = STATE_IDLE;
+	net_waiting = false;
 }
 
 void webclient_connected(void)

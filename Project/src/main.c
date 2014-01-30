@@ -26,38 +26,20 @@
 #include "sht1x.h"
 #include "gp2y1010.h"
 #include "network.h"
+#include "yeelink.h"
+#include "calendar.h"
 #include <stdlib.h>
 #include <string.h>
 
 const Task_t SystemTasks[] = { Network_Task, Yeelink_Task };
 
+enum {STATE_INIT, STATE_ERR, STATE_SYNC, STATE_REPORT, STATE_WAIT};
 
 static void periphInit(void)
 {
 	SHT1x_Config();
 	GP2Y1010_Init();
 	Network_Init();
-}
-
-void useHSIClock(void)
-{
-	// RCC_HSEConfig(RCC_HSE_ON);
-	// while(RCC_GetFlagStatus(RCC_FLAG_HSERDY) == RESET)//等待HSE使能成功
-	// {
-	// }
-	RCC_HSICmd(ENABLE);
-	while(RCC_GetFlagStatus(RCC_FLAG_HSIRDY) == RESET);//等待HSI使能成功
-
-	RCC_SYSCLKConfig(RCC_SYSCLKSource_HSI);
-
-	RCC_PLLCmd(DISABLE);
-	RCC_PLLConfig(RCC_PLLSource_HSI_Div2, RCC_PLLMul_10);
-
-	RCC_PLLCmd(ENABLE);
-	while(RCC_GetFlagStatus(RCC_FLAG_PLLRDY) == RESET);
-
-	RCC_SYSCLKConfig(RCC_SYSCLKSource_PLLCLK);
-	while(RCC_GetSYSCLKSource() != 0x08);
 }
 
 //核心组件初始化,包括串口(用于打印调试信息)
@@ -70,6 +52,27 @@ static void coreInit(void)
 	USART_Config();
 }
 
+static void measure_and_report()
+{
+	const char * datetime = Calendar_GetISO8601();
+
+	int air = GP2Y1010_Measure();
+	DBG_MSG("Air: %d", air);
+
+	float temp = 0, humi = 0;
+	char str[10];
+	if(SHT1x_MeasureTemp(&temp) == 0){
+		sprintf(str, "%.2f℃", temp);
+		DBG_MSG("temp: %s", str);
+
+		if(SHT1x_MeasureHumi(&humi, temp) == 0){
+			sprintf(str, "%.2f%%", humi);
+			DBG_MSG("humi: %s", str);
+		}
+	}
+
+	Yeelink_Send(datetime, air, temp, humi);
+}
 
 int main(void)
 {
@@ -93,8 +96,10 @@ int main(void)
 	periphInit();
 
 	Yeelink_Init();
+	Calendar_Init();
 
-	SysTick_t last_report = 0;
+	int state = STATE_INIT;
+	SysTick_t wait_timer;
 	while (1)
 	{
 
@@ -102,28 +107,25 @@ int main(void)
 		for(int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++)
 			(SystemTasks[i])();
 
-		SysTick_t now = GetSystemTick();
-		if(now - last_report > 5000){
-			last_report = now;
-
-			Yeelink_Send();
-
-			// int air = GP2Y1010_Measure();
-			// DBG_MSG("Air: %d", air);
-			
-			// float temp, humi;
-			// char str[16];
-			// if(SHT1x_MeasureTemp(&temp) == 0){
-			// 	sprintf(str, "%.2f℃", temp);
-			// 	DBG_MSG("temp: %s", str);
-
-			// 	if(SHT1x_MeasureHumi(&humi, temp) == 0){
-			// 		sprintf(str, "%.2f%%", humi);
-			// 		DBG_MSG("humi: %s", str);
-			// 	}
-			// }else{
-			// 	DBG_MSG("failed", 0);
-			// }
+		switch(state)
+		{
+			case STATE_INIT:
+				Calendar_Sync();
+				state = STATE_SYNC;
+				break;
+			case STATE_SYNC:
+				if(Calendar_DateTimeSet())
+					state = STATE_REPORT;
+				break;
+			case STATE_REPORT:
+				measure_and_report();
+				state = STATE_WAIT;
+				wait_timer = GetSystemTick();
+				break;
+			case STATE_WAIT:
+				if(GetSystemTick() - wait_timer >= REPORT_INTERVAL)
+					state = STATE_REPORT;
+				break;
 		}
 
 	}

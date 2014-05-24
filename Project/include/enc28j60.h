@@ -260,6 +260,7 @@ unsigned char enc28j60Read(unsigned char address);
 void 	enc28j60Write(unsigned char address, unsigned char data);
 void 	enc28j60PhyWrite(unsigned char address, unsigned int data);
 void 	enc28j60clkout(unsigned char clk);
+void 	enc28j60Pwrsv(void);
 void 	enc28j60Init(unsigned char* macaddr);
 unsigned char enc28j60getrev(void);
 void 	enc28j60PacketSend(unsigned int len, unsigned char* packet);

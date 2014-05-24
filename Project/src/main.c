@@ -25,6 +25,7 @@
 #include "adc.h"
 #include "sht1x.h"
 #include "gp2y1010.h"
+#include "enc28j60.h"
 #include "network.h"
 #include "yeelink.h"
 #include "calendar.h"
@@ -137,6 +138,7 @@ int main(void)
 				break;
 			case STATE_POWEROFF:
 				DBG_MSG("Preparing to power off...", 0);
+				enc28j60Pwrsv();
 				GP2Y1010_Poweroff();
 
 				state = STATE_WAIT;

@@ -133,6 +133,13 @@ void enc28j60clkout(unsigned char clk)
     enc28j60Write(ECOCON, clk & 0x7);
 }
 
+void enc28j60Pwrsv()
+{
+    enc28j60WriteOp(ENC28J60_BIT_FIELD_CLR, ECON1, ECON1_RXEN);
+
+    enc28j60WriteOp(ENC28J60_BIT_FIELD_SET, ECON2, ECON2_PWRSV|ECON2_VRPS);
+}
+
 void enc28j60Init(unsigned char* macaddr)
 {   
 
@@ -140,12 +147,15 @@ void enc28j60Init(unsigned char* macaddr)
     
     ENC28J60_CSH();	      
 
+    // leave power saving mode
+    enc28j60WriteOp(ENC28J60_BIT_FIELD_CLR, ECON2, ECON2_PWRSV|ECON2_VRPS);
+
     // perform system reset
     enc28j60WriteOp(ENC28J60_SOFT_RESET, 0, ENC28J60_SOFT_RESET);
    
     // check CLKRDY bit to see if reset is complete
     // The CLKRDY does not work. See Rev. B4 Silicon Errata point. Just wait.
-    // while(!(enc28j60Read(ESTAT) & ESTAT_CLKRDY));
+    while(!(enc28j60Read(ESTAT) & ESTAT_CLKRDY));
     // do bank 0 stuff
     // initialize receive buffer
     // 16-bit transfers, must write low byte first

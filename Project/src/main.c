@@ -33,7 +33,7 @@
 
 const Task_t SystemTasks[] = { Network_Task, Yeelink_Task };
 
-enum {STATE_INIT, STATE_ERR, STATE_SYNC, STATE_REPORT, STATE_POWEROFF, STATE_WAIT};
+enum {STATE_INIT, STATE_ERR, STATE_SYNC, STATE_REPORT, STATE_REPORT_WAIT, STATE_POWEROFF, STATE_WAIT};
 
 static void periphInit(void)
 {
@@ -99,6 +99,7 @@ int main(void)
 	Calendar_Init();
 
 	int state = STATE_INIT;
+	SysTick_t timeout = 0;
 	while (1)
 	{
 
@@ -111,22 +112,34 @@ int main(void)
 			case STATE_INIT:
 				Calendar_Sync();
 				state = STATE_SYNC;
+				timeout = GetSystemTick();
 				break;
 			case STATE_SYNC:
 				if(Calendar_DateTimeSet())
 					state = STATE_REPORT;
+				else if(GetSystemTick() - timeout > DATE_SYNC_TIMEOUT){
+					ERR_MSG("Date sync timed out", 0);
+					state = STATE_POWEROFF;
+				}
 				break;
 			case STATE_REPORT:
 				measure_and_report();
-				state = STATE_POWEROFF;
+				timeout = GetSystemTick();
+				state = STATE_REPORT_WAIT;
+				break;
+			case STATE_REPORT_WAIT:
+				if(Yeelink_Idle())
+					state = STATE_POWEROFF;
+				else if(GetSystemTick() - timeout > REPORT_TIMEOUT){
+					ERR_MSG("Report timed out", 0);
+					state = STATE_POWEROFF;
+				}
 				break;
 			case STATE_POWEROFF:
-				if(Yeelink_Idle()){
-					DBG_MSG("Preparing to power off...", 0);
-					GP2Y1010_Poweroff();
+				DBG_MSG("Preparing to power off...", 0);
+				GP2Y1010_Poweroff();
 
-					state = STATE_WAIT;
-				}
+				state = STATE_WAIT;
 				break;
 			case STATE_WAIT:
 				Delay_ms(REPORT_INTERVAL);

@@ -20,4 +20,7 @@
 
 #define REPORT_INTERVAL  300000
 
+#define DATE_SYNC_TIMEOUT 30000
+#define REPORT_TIMEOUT    15000
+
 #endif

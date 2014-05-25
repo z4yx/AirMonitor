@@ -29,6 +29,7 @@
 #include "network.h"
 #include "yeelink.h"
 #include "calendar.h"
+#include "alarm.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -51,6 +52,7 @@ static void coreInit(void)
 	SystemCoreClockUpdate();
 	SysTick_Init();
 	USART_Config();
+	Alarm_Config();
 }
 
 static void measure_and_report()
@@ -83,6 +85,10 @@ int main(void)
 	RCC_GetClocksFreq(&clocks);
 
 	coreInit();
+
+	// Set alarm for auto-wakeup
+	Alarm_SetInterrupt(ENABLE);
+	Alarm_SetAlarm(REPORT_INTERVAL/1000);
 
 	Delay_ms(1000);
 
@@ -140,6 +146,8 @@ int main(void)
 				DBG_MSG("Preparing to power off...", 0);
 				enc28j60Pwrsv();
 				GP2Y1010_Poweroff();
+				PWR_EnterSTANDBYMode();
+				ERR_MSG("Failed to enter standby mode.", 0);
 
 				state = STATE_WAIT;
 				break;

@@ -20,10 +20,8 @@
 #include "stm32f10x_it.h"
 
 extern void IncSysTickCounter(void);
-extern void LimitSwitch_Interrupt(void);
-extern void Motor_Interrupt(void);
 extern void PWM_TIM2_Interrupt(void);
-extern void HostCtrl_Interrupt(void);
+extern void Alarm_Interrupt(void);
 
 /** @addtogroup STM32F10x_StdPeriph_Examples
   * @{
@@ -173,6 +171,22 @@ void EXTI15_10_IRQHandler(void)
 void TIM2_IRQHandler(void)
 {
     PWM_TIM2_Interrupt();
+}
+
+void RTCAlarm_IRQHandler(void)
+{
+  if (RTC_GetITStatus(RTC_IT_ALR) != RESET)
+  {
+    EXTI_ClearITPendingBit(EXTI_Line17);
+    RTC_ClearITPendingBit(RTC_IT_ALR);
+    RTC_WaitForLastTask();
+    Alarm_Interrupt();
+  }
+}
+
+void RTC_IRQHandler(void)
+{
+
 }
 
 void USART1_IRQHandler(void)

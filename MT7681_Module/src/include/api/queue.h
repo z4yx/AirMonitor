@@ -25,7 +25,7 @@
  ******************************************************************************/
 #include "types.h"
 #include "list.h"
-
+#include "xip_ovly.h"
 
 /******************************************************************************
  * CONFIGURATIONS
@@ -100,7 +100,7 @@ EXTERN QU_t gFreeQueue1; // WIFI
 /******************************************************************************
  * PROTOTYPES
  ******************************************************************************/
-VOID apiQU_Initialize (VOID);
+VOID apiQU_Initialize (VOID) XIP_ATTRIBUTE(".xipsec0");
 VOID apiQU_Enqueue (IN pQU_t pQueue,IN pBD_t pBufDesc);
 OUT pBD_t apiQU_Dequeue (IN pQU_t pQueue);
 OUT pBD_t apiQU_Touch (IN pQU_t pQueue);

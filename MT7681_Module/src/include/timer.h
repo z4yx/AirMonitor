@@ -10,8 +10,11 @@
 
 void drvTMR_Init(void);
 void drvTMR_IntHdler(void);
-void drvTMR_Tick_Init(void);
+void drvTMR_Tick_Init(void) XIP_ATTRIBUTE(".xipsec0");
 void SwTimerHandler(void);
+#if (HW_TIMER1_SUPPORT==1)
+void hw_timer1_IntHdler(void);
+#endif
 
 /*******************************************************************************
 *                  K A L   D E C L A R A T I O N S
@@ -33,12 +36,12 @@ typedef struct timer_type_struct {
     struct timer_type_struct *previous_timer;
 } kal_timer_type, *kal_timer_type_p;
 
-extern kal_timer_type* kal_create_timer();
+extern kal_timer_type* kal_create_timer() XIP_ATTRIBUTE(".xipsec0");
 extern void kal_start_timer(kal_timer_type *timer, kal_uint32 timeout);
 extern void kal_stop_timer(kal_timer_type *timer);
 extern void kal_delay_time(kal_uint32 count);
 extern kal_uint32 kal_get_systime(void);
-void sys_init_timer();
+void sys_init_timer() XIP_ATTRIBUTE(".xipsec0");
 
 
 #define	cos_timer_type		kal_timer_type

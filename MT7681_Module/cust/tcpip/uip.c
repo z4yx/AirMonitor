@@ -122,11 +122,7 @@ static const uip_ipaddr_t all_zeroes_addr =
   {0x0000,0x0000};
 #endif /* UIP_CONF_IPV6 */
 
-#ifdef CONFIG_SOFTAP
-extern u8_t MyBssid[];
-#else
 extern u8_t gCurrentAddress[];
-#endif
 
 #if UIP_FIXEDETHADDR
 const struct uip_eth_addr uip_ethaddr = {{UIP_ETHADDR0,
@@ -178,7 +174,7 @@ UIP_UDP_CONN *uip_udp_conn;
 UIP_UDP_CONN uip_udp_conns[UIP_UDP_CONNS];
 #endif /* UIP_UDP */
 
-static u16_t ipid;           /* Ths ipid variable is an increasing
+u16_t ipid;           /* Ths ipid variable is an increasing
 				number that is used for the IP ID
 				field. */
 
@@ -400,11 +396,8 @@ uip_init(void)
   }
 #endif /* UIP_UDP */
 
-#ifdef  CONFIG_SOFTAP
-  memcpy((u8_t*)&uip_ethaddr, (u8_t *)&MyBssid[0], sizeof(struct uip_eth_addr));
-#else
   memcpy((u8_t*)&uip_ethaddr, (u8_t *)&gCurrentAddress[0], sizeof(struct uip_eth_addr));
-#endif
+
   /* IPv4 initialization. */
 #if UIP_FIXEDADDR == 0
   /*  uip_hostaddr[0] = uip_hostaddr[1] = 0;*/

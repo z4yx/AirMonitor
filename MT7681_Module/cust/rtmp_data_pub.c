@@ -45,6 +45,7 @@
 ******************************************************************/
 extern MLME_STRUCT 	 *pIoTMlme;
 extern UCHAR EAPOL[2];	//  = {0x88, 0x8e};
+extern u8_t uip_sourceAddr[6];
 
 #if (ATCMD_ATE_SUPPORT == 1)
 extern ATE_INFO gATEInfo;
@@ -59,6 +60,26 @@ extern ATE_INFO gATEInfo;
 /*****************************************************************
   Functions
 ******************************************************************/
+VOID RestartBCNTimer(VOID)
+{	
+	cnmTimerStopTimer (&pIoTMlme->BeaconTimer);
+	cnmTimerStartTimer(&pIoTMlme->BeaconTimer, BEACON_LOST_TIME);
+}
+
+/*
+    ==========================================================================
+    Description:
+        function to be executed at timer thread when beacon lost timer expires
+	IRQL = DISPATCH_LEVEL
+    ==========================================================================
+ */
+/* Beacon loss timeout handler */
+VOID BeaconTimeoutAction(UINT_32 param, UINT_32 param2) 
+{
+	IoT_Cmd_LinkDown(REASON_DISASSPC_AP_UNABLE);
+}
+
+
 //
 // All Rx routines use RX_BLK structure to hande rx events
 // It is very important to build pRxBlk attributes
@@ -91,6 +112,9 @@ VOID STAHandleRxDataFrame(
 #if CFG_SUPPORT_TCPIP
     netif_rx(pRxBlk->pData, pRxBlk->DataSize);
 #endif
+
+#elif (ATCMD_ATE_SUPPORT == 1)
+	/*Do nothing*/
 
 #else
    switch (pIoTMlme->CurrentWifiState){
@@ -125,18 +149,16 @@ VOID STAHandleRxDataFrame(
 				break;
 			}
 #endif
-
-/*
- * 2014/05/23,terrence,MT7681 STA power saving mode
- * here,we check the received UC/BMC packet which parepared for power saving
- */
-#if (MT7681_POWER_SAVING == 1)
+            /*
+             * 2014/05/23,terrence,MT7681 STA power saving mode
+             * here,we check the received UC/BMC packet which parepared for power saving
+             */
            if (pIoTMlme->CurrentWifiState == WIFI_STATE_CONNED)
            {
+#if (MT7681_POWER_SAVING == 1)
                STACheckRxDataForPS(pRxBlk);
-           }
 #endif
-
+           }
 
 #if CFG_SUPPORT_TCPIP
 			pRxBlk->pData    -= 6;
@@ -203,6 +225,10 @@ VOID STAHandleRxMgmtFrame(
 			break;
 	}
 
+
+#elif (ATCMD_ATE_SUPPORT == 1)
+	/*Do nothing*/
+
 #else
 	switch (pIoTMlme->CurrentWifiState)
 	{
@@ -246,15 +272,16 @@ VOID STAHandleRxMgmtFrame(
             {
 				if(pRxBlk->pHeader->FC.SubType == SUBTYPE_BEACON)
                 {
-                     //Printf_High("beacon received,time:%d\n",kal_get_systime());
-                     RestartBCNTimer();
-/*
- * 2014/05/23,terrence,MT7681 STA power saving mode
- * here,we check the received beacon packet which parepared for power saving
- */
-#if (MT7681_POWER_SAVING == 1) 
-                     STACheckRxBeaconForPS(pRxBlk);
-#endif	                          
+					//Printf_High("beacon received,time:%d\n",kal_get_systime());
+					RestartBCNTimer();
+
+					/*
+					* 2014/05/23,terrence,MT7681 STA power saving mode
+					* here,we check the received beacon packet which parepared for power saving
+					*/
+					#if (MT7681_POWER_SAVING == 1) 
+					STACheckRxBeaconForPS(pRxBlk);
+					#endif	                          
 				 }
 			}
 			break;
@@ -391,6 +418,8 @@ BOOLEAN STARxDoneInterruptHandle(
 		/* CASE I, receive a DATA frame */
 		case BTYPE_DATA:
 		{	
+			if((pHeader->FC.ToDs == 0)&&(pHeader->FC.FrDs == 1))
+			  memcpy(uip_sourceAddr, pHeader->Addr3, 6);
 #ifndef CONFIG_SOFTAP
 			//jinchuan  (Only deal with Data frame in scan or Connected State,	or we need response Deauth)
 			if(pIoTMlme->DataEnable == 1) 
@@ -421,10 +450,10 @@ extern MLME_STRUCT *pIoTMlme;
 BOOLEAN RxFsIntFilterOut(pBD_t RxpBufDesc)
 {
     PUCHAR          pBuff;
-    //PRXINFO_STRUC   pRxINFO;
-    //PRXWI_STRUC     pRxWI;
+    PRXINFO_STRUC   pRxINFO;
+    PRXWI_STRUC     pRxWI;
     PHEADER_802_11  pHeader;
-    
+    RX_BLK			RxBlk;
     //USHORT          DataSize = 0; 
     //UINT8           U2M = 0;
     //UINT8           Mcast = 0;  
@@ -433,10 +462,10 @@ BOOLEAN RxFsIntFilterOut(pBD_t RxpBufDesc)
 
   
     pBuff   = (PUCHAR)RxpBufDesc->pBuf;
-    //pRxINFO = (PRXINFO_STRUC)(pBuff);
-    //pRxWI   = (PRXWI_STRUC)(pBuff + RXINFO_SIZE);
+    pRxINFO = (PRXINFO_STRUC)(pBuff);
+    pRxWI   = (PRXWI_STRUC)(pBuff + RXINFO_SIZE);
     pHeader = (PHEADER_802_11)(pBuff + RXINFO_SIZE + RXWI_SIZE);
-    
+
     //DataSize = pRxWI->MPDUtotalByteCount;
     type = pHeader->FC.Type;
     subtype = pHeader->FC.SubType;
@@ -460,6 +489,34 @@ BOOLEAN RxFsIntFilterOut(pBD_t RxpBufDesc)
              }      
 #endif
 			 break;      
+
+        case WIFI_STATE_CONNED:
+    
+             /*The Mcast, Bcast bits shall be set as 1, if Received Packet is Broadcast  */
+             /*The Mcast shall be set as 1, Bcast bit shall be set as 0, if Received Packet is Multicast  */
+             if ((pRxINFO->Mcast) && (pRxINFO->Bcast == 0))
+             {
+                /*
+                 * 2014/05/23,terrence,MT7681 STA power saving mode
+                 * here,we check the received UC/BMC packet which parepared for power saving
+                 */
+ #if (MT7681_POWER_SAVING == 1)
+                 /* fill RxBLK */
+              	 RxBlk.pRxINFO = pRxINFO;
+              	 RxBlk.pRxWI   = pRxWI;
+              	 RxBlk.pHeader = pHeader;
+              	 RxBlk.pRxPacket = RxpBufDesc;
+              	 RxBlk.pData = (UCHAR *) pHeader;
+              	 //RxBlk.DataSize = pRxWI->MPDUtotalByteCount;
+              	 //RxBlk.Flags = 0;
+            	
+                 STACheckRxDataForPS(&RxBlk);
+ #endif
+                 /*Improve Rx Performance by drop Multicast frame while MT7681 connected with AP router */
+                 return TRUE;
+             }
+             break;
+
 
 
         default:

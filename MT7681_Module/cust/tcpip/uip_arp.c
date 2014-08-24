@@ -60,7 +60,7 @@
 
 
 #include "uip_arp.h"
-
+#include "iot_api.h"
 #include <string.h>
 
 struct arp_hdr {
@@ -115,6 +115,8 @@ static u8_t tmpage;
 
 #define BUF   ((struct arp_hdr *)&uip_buf[0])
 #define IPBUF ((struct ethip_hdr *)&uip_buf[0])
+u8_t uip_sourceAddr[6];
+extern STA_ADMIN_CONFIG *pIoTStaCfg;
 /*-----------------------------------------------------------------------------------*/
 /**
  * Initialize the ARP module.
@@ -417,6 +419,26 @@ uip_arp_out(void)
   IPBUF->ethhdr.type = HTONS(UIP_ETHTYPE_IP);
 
   uip_len += sizeof(struct uip_eth_hdr);
+}
+
+PUCHAR uip_get_DestMAC(uip_ipaddr_t *DestAddr)
+{
+  uip_ipaddr_t *addr = DestAddr;
+ 
+  if(!DestAddr)
+  	return NULL;
+
+  if(uip_ipaddr_cmp(addr, broadcast_ipaddr)) {
+    return broadcast_ethaddr.addr;
+  } else {
+    /* Check if the destination address is on the local network. */
+    if(!uip_ipaddr_maskcmp(addr, uip_hostaddr, uip_netmask)) {
+	  return pIoTStaCfg->Bssid;
+    } else {
+      /* Else, we use the destination IP address. */
+	  return uip_sourceAddr;
+    }
+  }
 }
 /*-----------------------------------------------------------------------------------*/
 

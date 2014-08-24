@@ -5,7 +5,7 @@
  * DESIGNER:		Charles Su
  * DATE:			Oct 2011
  *
- *最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
+ * SOURCE CONTROL:
  *
  * LICENSE:
  *	 This source code is copyright (c) 2011 Ralink Tech. Inc.
@@ -16,10 +16,10 @@
  *   V1.0.1	 Dec 2011	- Add Caution
  *
  *
- * 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
+ * SOURCE:
  * ISSUES:
  *	First Implementation.
- * 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
+ * NOTES TO USERS:
  *
  ******************************************************************************/
 #include "stdio.h"

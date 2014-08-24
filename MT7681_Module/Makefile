@@ -295,10 +295,10 @@ endif
 ifeq ($(PRODUCT_VERSION),7681)
 	@if [ -s  $(BINARY_XIP) -o -s  $(BINARY_OVERLAY) ]; then \
 	   $(RM)  $(BINARY_OLD) ;\
-	   . header.sh $(BINARY) $(BIN_HEADER_TYPE) $(HEADER_BIN);\
+	   ./header.sh $(BINARY) $(BIN_HEADER_TYPE) $(HEADER_BIN);\
 	else \
 	   $(RM)  $(BINARY_RAM) $(BINARY_XIP) $(BINARY_OVERLAY);\
-	   . header.sh $(BINARY_OLD) $(BIN_HEADER_TYPE) $(HEADER_BIN);\
+	   ./header.sh $(BINARY_OLD) $(BIN_HEADER_TYPE) $(HEADER_BIN);\
 	fi;
 	
 endif

@@ -14,20 +14,20 @@
 * DESIGNER:        
 * DATE:            Jan 2013
 *
-*最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
+* SOURCE CONTROL:
 *
 * LICENSE:
 *     This source code is copyright (c) 2011 Ralink Tech. Inc.
 *     All rights reserved.
 *
-* 深圳市安信可科技 MTK7681串口模块专业生产厂家 
+* REVISION     HISTORY:
 *   V1.0.0     Jan 2012    - Initial Version V1.0
 *
 *
-* 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
+* SOURCE:
 * ISSUES:
 *    First Implementation.
-* 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
+* NOTES TO USERS:
 *
 ******************************************************************************/
 #if (UART_INTERRUPT == 1)
@@ -58,6 +58,7 @@ void UARTRx_Buf_Init(UARTStruct *qp)
     Buf_init(rx_ring,(kal_uint8 *)(UARTRxBuf),(kal_uint16)UARTRX_RING_LEN);
 }
 
+extern BOOLEAN UART_TX_POLL_ENABLE;
 
 /*
  *  task context
@@ -73,29 +74,44 @@ kal_uint16 UART_PutBytes(volatile kal_uint8 *Buffaddr, volatile kal_uint16 Lengt
     kal_uint8* ptr = Buffaddr;
     kal_uint16  size = Length;
 
-    /*
-     * when litter tx buff, should use polling
-     */
-    while (size)
-    {  
-        len = 0;
-        Buf_GetRoomLeft(&(UARTPort.Tx_Buffer),roomleft);
-        if(roomleft)
-        {    
-           if (size <= roomleft)
-               len = size;
-           else if (size > roomleft)
-               len = roomleft;
-
-           for(i = 0;i < len;i++ )
-               Buf_Push(&(UARTPort.Tx_Buffer),*(ptr++));
-
-            size -= len;  
+    //UART TX interrupt mode
+    if (UART_TX_POLL_ENABLE == FALSE)
+    {
+        /*
+         * when litter tx buff, should use polling
+         */
+        while (size)
+        {  
+            len = 0;
+            Buf_GetRoomLeft(&(UARTPort.Tx_Buffer),roomleft);
+            if(roomleft)
+            {    
+               if (size <= roomleft)
+                   len = size;
+               else if (size > roomleft)
+                   len = roomleft;
+    
+               for(i = 0;i < len;i++ )
+                   Buf_Push(&(UARTPort.Tx_Buffer),*(ptr++));
+    
+                size -= len;  
+            }
+            UART_EnableTX(); 
         }
-        UART_EnableTX(); 
+     
+        return Length;
     }
- 
-    return Length;
+    else
+    {   
+        //UART TX polling mode
+        i = 0;
+        while (i < Length)
+        {
+           UART_PutUARTByte(*(Buffaddr + i));
+           i++;
+        }
+        return Length;
+    }
 }
 
 

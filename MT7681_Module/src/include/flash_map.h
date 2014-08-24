@@ -224,8 +224,8 @@
   **************************************************************************/
 #define FLASH_AP_CFG_BASE				(FLASH_OFFSET_AP_CFG_START)
 
-#define FLASH_AP_CFG_SMNT_INFO_STORED	(0x0)
-#define FLASH_AP_CFG_SMNT_INFO_STORED_LEN	(0x1)
+#define FLASH_AP_CFG_INFO_STORED		(0x0)
+#define FLASH_AP_CFG_INFO_STORED_LEN		(0x1)
 
 #define FLASH_AP_CFG_BSSID				(0x1)
 #define FLASH_AP_CFG_BSSID_LEN 				(MAC_ADDR_LEN)     //6 Bytes
@@ -233,22 +233,40 @@
 #define FLASH_AP_CFG_SSID				(0x7)
 #define FLASH_AP_CFG_SSID_LEN  				(MAX_LEN_OF_SSID)  //32 Bytes
 
-#define FLASH_AP_CFG_AP_CH				(0x27)
+#define FLASH_AP_CFG_SSIDLEN			(0x27)
+#define FLASH_AP_CFG_SSIDLEN_LEN  			(0x1)
+
+#define FLASH_AP_CFG_PHY_MODE			(0x28)
+#define FLASH_AP_CFG_PHY_MODE_LEN  			(0x1)
+
+#define FLASH_AP_CFG_AP_CH				(0x29)
 #define FLASH_AP_CFG_AP_CH_LEN  			(0x1)
 
-#define FLASH_AP_CFG_PASSPHASE			(0x28)
+#define FLASH_AP_CFG_AUTH_MODE			(0x2A)
+#define FLASH_AP_CFG_AUTH_MODE_LEN  		(0x1)
+
+#define FLASH_AP_CFG_PASSPHASE			(0x2B)
 #define FLASH_AP_CFG_PASSPHASE_LEN			(CIPHER_TEXT_LEN)  //32Bytes
 
-#define FLASH_AP_CFG_PASSPHASELEN		(0x48)
+#define FLASH_AP_CFG_PASSPHASELEN		(0x4B)
 #define FLASH_AP_CFG_PASSPHASELEN_LEN 		(0x1)
 
-#define FLASH_AP_CFG_AUTH_MODE			(0x49)
-#define FLASH_AP_CFG_AUTH_MODE_LEN			(0x1)
+#define FLASH_AP_CFG_BCN_INTERVAL		(0x4C)
+#define FLASH_AP_CFG_BCN_INTERVAL_LEN		(0x2)
 
-#define FLASH_AP_CFG_FGIS_HID_SSID		(0x4A)
+#define FLASH_AP_CFG_DTIM_COUNT			(0x4E)
+#define FLASH_AP_CFG_DTIM_COUNT_LEN			(0x1)
+
+#define FLASH_AP_CFG_DTIM_INTERVAL		(0x4F)
+#define FLASH_AP_CFG_DTIM_INTERVAL_LEN		(0x1)
+
+#define FLASH_AP_CFG_CAP_INFO			(0x50)
+#define FLASH_AP_CFG_CAP_INFO_LEN			(0x2)
+
+#define FLASH_AP_CFG_FGIS_HID_SSID		(0x52)
 #define FLASH_AP_CFG_FGIS_HID_SSID_LEN		(0x1)
 
-#define FLASH_AP_CFG_RESERVE_1			(0x4B)
+#define FLASH_AP_CFG_RESERVE_1			(0x53)
 #define FLASH_AP_CFG_RESERVE_1_LEN			(0x0)
 
 
@@ -299,11 +317,11 @@
    and no need do data check while IoT device power on*/
 #define PRODUCT_INFO_STORED				(0x23)
 
-/*Indicate the smart connection info already be initialized/stored on flash.
-   and no need do smart connection while IoT device power on,  
-   but go to SCAN state with the infor stored on flash	 */
+/*Indicate the Common config info already be initialized/stored on flash. */
 #define COMMON_INFO_STORED				(0x34)
 
+/*Indicate the AP info already be initialized/stored on flash */
+#define AP_INFO_STORED					(0x56)
 
 
 /***************************************************************************

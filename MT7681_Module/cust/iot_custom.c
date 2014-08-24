@@ -6,6 +6,9 @@
 #include "flash_map.h"
 #include "uip-conf.h"
 #include "iot_custom.h"
+#ifdef CONFIG_SOFTAP
+#include "ap_pub.h"
+#endif
 
 /******************************************************************************
 * MODULE NAME:     iot_customer.c
@@ -14,20 +17,20 @@
 * DESIGNER:        
 * DATE:            Jan 2013
 *
-*最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
+* SOURCE CONTROL:
 *
 * LICENSE:
 *     This source code is copyright (c) 2011 Mediatek Tech. Inc.
 *     All rights reserved.
 *
-* 深圳市安信可科技 MTK7681串口模块专业生产厂家 
+* REVISION     HISTORY:
 *   V1.0.0     Jan 2012    - Initial Version V1.0
 *
 *
-* 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
+* SOURCE:
 * ISSUES:
 *    First Implementation.
-* 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
+* NOTES TO USERS:
 *
 ******************************************************************************/
 
@@ -135,20 +138,31 @@ BOOLEAN bSpecAP = TRUE;
 IOT_CUST_OP   	IoTCustOp;
 IOT_CUST_TIMER  IoTCustTimer;
 IOT_ADAPTER   	IoTpAd;
-IOT_SMNT_INFO 	IoTSmntInfo;
+
 extern MLME_STRUCT *pIoTMlme;
+
+#ifdef CONFIG_SOFTAP
+extern AP_ADMIN_CONFIG  *pIoTApCfg;
+#else
+extern STA_ADMIN_CONFIG *pIoTStaCfg;
+#endif
 
 /*TRUE: Printf_High()/DBGPRINT_HIGH() is enabled,    FALSE: Printf_High/DBGPRINT_HIGH()  is disabled*/
 BOOLEAN         PRINT_FLAG = TRUE;
 
 
+#if (UART_INTERRUPT == 1)
+/* 
+ * We can use UART TX POLL scheme(such as debug/test),default is FALSE
+ */
+BOOLEAN UART_TX_POLL_ENABLE = FALSE;
+
+extern void UART_Rx_Packet_Dispatch(void);
+#endif
+
 /************************************************/
 /* Functions */
 /************************************************/
-
-#if (UART_INTERRUPT == 1)
-extern void UART_Rx_Packet_Dispatch(void);
-#endif
 
 /* Sample code for custom SubTask and Timer */
 VOID IoT_Cust_Sub_Task(VOID)
@@ -210,15 +224,22 @@ VOID IoT_Cust_Ops(VOID)
 
 VOID IoT_Cust_Init(VOID)
 {
+	/*Beacon lost timeout timer*/
+	cnmTimerInitTimer(&pIoTMlme->BeaconTimer, BeaconTimeoutAction,0, 0);
+
 	/*for customer initialization*/
 	cnmTimerInitTimer(&IoTCustTimer.custTimer0,  CustTimer0TimeoutAction, 0, 0);
 
 #if (UARTRX_TO_AIR_LEVEL == 2)	
-	IoT_Cust_uart2wifi_init(300, 10);
+	IoT_Cust_uart2wifi_init(UART2WIFI_TIMER_INTERVAL, UART2WIFI_LEN_THRESHOLD);
 #endif
 
 	//load_com_cfg();
 	load_usr_cfg();
+
+#if (MT7681_POWER_SAVING == 1)
+    pIoTMlme->PMLevel = 1;
+#endif
 }
 
 
@@ -231,8 +252,6 @@ VOID CustTimer0TimeoutAction(UINT_32 param, UINT_32 param2)
 #endif
 	cnmTimerStartTimer (&IoTCustTimer.custTimer0, 100);
 }
-
-
 
 
 /*========================================================================
@@ -249,6 +268,10 @@ VOID Pre_init_cfg(VOID)
 
 	/*read Uart setting in the flash, then config uart HW*/
 	load_com_cfg();
+
+#if (IOT_PWM_SUPPORT == 1)	
+	IoTpAd.PWM_LVL = PWM_HIGHEST_LEVEL;
+#endif
 }
 
 
@@ -586,16 +609,36 @@ BOOLEAN reset_com_cfg(BOOLEAN bUpFlash)
 	Return Value:	
 ========================================================================*/
 BOOLEAN reset_sta_cfg(VOID)
-{	
+{
 	/*in changlist98520, if do Offline from Data Cmd "CONTROL_CLIENT_OFFLINE_REQUEST",  system halt*/
 	/*Only add Printf or other statement here, can fix it,   this is temparary solution, need anaylsis in furture*/
 	usecDelay(10);
 	
 	/* Notice: erase sta config Flash region , default size is one sector [4KB] */
 	spi_flash_erase_SE(FLASH_STA_CFG_BASE);
+	
+	return TRUE;
+}
+
+/*========================================================================
+	Routine	Description:
+		reset_ap_cfg
+		
+	Arguments:	
+	Return Value:	
+========================================================================*/
+BOOLEAN reset_ap_cfg(VOID)
+{
+	/*in changlist104708, if AT cmd  AT#SoftAPConf -d1+enter,  system halt*/
+	/*Only add Printf or other statement here, can fix it,   this is temparary solution, need anaylsis in furture*/
+	usecDelay(10);
+	
+	/* Notice: erase ap config Flash region , default size is one sector [4KB] */
+	spi_flash_erase_SE(FLASH_AP_CFG_BASE);
 
 	return TRUE;
 }
+
 
 /*========================================================================
 	Routine	Description:
@@ -617,6 +660,7 @@ VOID IoT_Cust_SMNT_Sta_Chg_Init(VOID)
 	SMTCN_state_chg_init();
 
 #else
+	IoT_Set_RxFilter(0x7f93);   /*Enable Sniffer NotToMe unicast, not myBSS Packet*/
 	pIoTMlme->DataEnable = 1;  /*Enable to handle Data frame in STARxDoneInterruptHandle*/
 
 	/* once jump to SmartConnection State, maybe you need do SmartConnection Initialization here */
@@ -671,29 +715,28 @@ VOID IoT_Cust_SM_Smnt(VOID)
 	
 	/* After smnt connection done */
 	/* need set Smnt connection information and start to scan*/
-	IoTSmntInfo.AuthMode     = Ndis802_11AuthModeOpen;
-	IoTSmntInfo.SsidLen	     = strlen(Ssid);
-	IoTSmntInfo.PassphaseLen = strlen(Passphase); //sizeof(Passphase);
-	memcpy(IoTSmntInfo.Ssid, 	  Ssid, 	 IoTSmntInfo.SsidLen);
-	memcpy(IoTSmntInfo.Passphase, Passphase, IoTSmntInfo.PassphaseLen);
+	pIoTStaCfg->AuthMode     = Ndis802_11AuthModeOpen;
+	pIoTStaCfg->SsidLen	     = strlen(Ssid);
+	pIoTStaCfg->PassphaseLen = strlen(Passphase); //sizeof(Passphase);
+	memcpy(pIoTStaCfg->Ssid, 	  Ssid, 	 pIoTStaCfg->SsidLen);
+	memcpy(pIoTStaCfg->Passphase, Passphase, pIoTStaCfg->PassphaseLen);
 
 #ifdef PMK_CAL_BY_SW  //jinchuan  calcurate PMK by 7681 software, it will spend 6sec
-	if (IoTSmntInfo.AuthMode >= Ndis802_11AuthModeWPA)
+	if (pIoTStaCfg->AuthMode >= Ndis802_11AuthModeWPA)
 	{
 		/*Deriver PMK by AP 's SSID and Password*/	
 		UCHAR keyMaterial[40] = {0};
-		if (IoTSmntInfo.AuthMode != Ndis802_11AuthModeOpen)
-		{
-			RtmpPasswordHash(IoTSmntInfo.Passphase, IoTSmntInfo.Ssid, 
-							 IoTSmntInfo.SsidLen,   keyMaterial);
-			memcpy(IoTSmntInfo.PMK, keyMaterial, 32);
-		}
+		
+		RtmpPasswordHash(pIoTStaCfg->Passphase, pIoTStaCfg->Ssid, 
+						 pIoTStaCfg->SsidLen,   keyMaterial);
+		memcpy(pIoTStaCfg->PMK, keyMaterial, LEN_PMK);
+
+		//Printf_High("keyMaterial:");
+		//dump(keyMaterial, 40);
 	}
 #else
-	memcpy(IoTSmntInfo.PMK,       PMK, 		 strlen(PMK));
+	memcpy(pIoTStaCfg->PMK,  PMK, strlen(PMK));
 #endif
-
-	IoT_Cust_smnt_info();   /*Sync the IoTSmntInfo to other StateMachine, must call this func if IoTSmntInfo changed*/
 
 	/* change wifi state to SCAN*/
 	wifi_state_chg(WIFI_STATE_SCAN, 0);
@@ -804,3 +847,25 @@ VOID IoT_Cust_GPIINT_Hdlr(IN UINT8 GPI_STS)
 	}
 }
 
+#if (HW_TIMER1_SUPPORT==1)
+
+VOID IoT_Cust_HW_Timer1_Hdlr(VOID)
+{
+	/*Sample code for HW timer1 interrupt handle*/
+	/*Notice:  Do not implement too much process here, as it is running in interrupt level*/
+
+	#if 0
+	UINT8 input, Polarity;
+	
+	/*Make GPIO 4 blinking by Timer1 HW EINT */
+	IoT_gpio_read(4, &input, &Polarity);
+	IoT_gpio_output(4, (input==0)?1:0 );
+	#endif
+}
+
+UINT32 IoT_Cust_Get_HW_Timer1_TICK_HZ(VOID)
+{
+	return TICK_HZ_HWTIMER1;
+}
+
+#endif

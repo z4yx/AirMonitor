@@ -3,10 +3,13 @@
 #include "uiplib.h"
 #include "iot_api.h"
 #include "string.h"
+#include "webclient.h"
 
 extern IOT_ADAPTER   	IoTpAd;
 extern int cli_fd;
 extern u8_t gCurrentAddress[];
+extern u16_t http_clientPort;
+
 /*---------------------------------------------------------------------------*/
 /*
  * The initialization function. We must explicitly call this function
@@ -20,6 +23,13 @@ iot_tcp_app_init(void)
   uip_listen(HTONS(IoTpAd.ComCfg.Local_TCP_Srv_Port));
 #if CFG_SUPPORT_TCPIP_ROBUST_TEST
   uip_listen(HTONS(7684));
+#endif
+
+#if UIP_HTTP_CLIENT_SUPPORT
+  //http client setting
+  webclient_get("192.168.1.100", HTTP_SERVER_DEFAULT_PORT, "/MT7681_sta_header.bin");
+  printf("http client port:%d\n", http_clientPort);
+  uip_listen(HTONS(http_clientPort));
 #endif
 }
 
@@ -40,10 +50,17 @@ iot_tcp_appcall(void)
 	* this to access it easier.
 	*/
 	struct iot_tcp_app_state *s = &(uip_conn->appstate);
-	u16_t lport;
+	u16_t lport = HTONS(uip_conn->lport);
+
+#if UIP_HTTP_CLIENT_SUPPORT
+	if(lport == http_clientPort){
+	  webclient_appcall();
+	  return;
+	}	
+#endif
 
 	if (uip_aborted() || uip_timedout() || uip_closed()) {
-		switch (HTONS(uip_conn->lport)) {
+		switch (lport) {
 		case 7682: //IoT as clent.
 			cli_fd = -1;
 		}
@@ -78,7 +95,7 @@ iot_tcp_appcall(void)
 										);
 #endif
 		s->state = IOT_APP_S_CONNECTED;
-		switch (HTONS(uip_conn->lport)) {
+		switch (lport) {
 		case 7682:
 			memcpy(logon_msg+10, gCurrentAddress, 6);
 			uip_send(logon_msg, 16);
@@ -95,7 +112,6 @@ iot_tcp_appcall(void)
 
 	if (uip_newdata()) {
 		printf("RX fd : %d\n", uip_conn->fd);
-		lport = HTONS(uip_conn->lport);
 		if (lport == IoTpAd.ComCfg.Local_TCP_Srv_Port || lport==7682) {
 #if ENABLE_DATAPARSING_SEQUENCE_MGMT		
 			IoT_process_app_packet(uip_conn->fd, uip_appdata,uip_datalen());

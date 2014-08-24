@@ -13,6 +13,7 @@
 #include "iot_custom.h"
 #include "bmd.h"
 #include "crypt_md5.h"
+#include "uip.h"
 
 
 /******************************************************************************
@@ -45,14 +46,43 @@
 #define BW_40		1
 #endif
 
+
+/* new types for Media Specific Indications */
+/* Extension channel offset */
+
+/******************************************************************************
+---------40 MHz Above----            ---------40 MHz Below-------
+PrimaryCH   2ndCH  CenterCH        PrimaryCH   2ndCH       CenterCH
+1              5              3                      1          Not Avaible   Not Avaible
+2              6              4                      2          Not Avaible   Not Avaible
+3              7              5                      3          Not Avaible   Not Avaible
+4              8              6                      4          Not Avaible   Not Avaible
+5              9              7                      5                1                  3
+6              10            8                      6                2                  4
+7              11            9                      7                3                  5
+8              12            10                     8                4                 6
+9              13            11                     9                5                 7
+10    Not Avaible   Not Avaible            10               6                 8
+11    Not Avaible   Not Avaible            11               7                 9
+12    Not Avaible   Not Avaible            12               8                 10
+13    Not Avaible   Not Avaible            13               9                 11
+******************************************************************************/
+#define EXTCHA_NONE			0
+#define EXTCHA_ABOVE		0x1      /*40 MHz Above*/
+#define EXTCHA_BELOW		0x3      /*40 MHz Below*/
+
+
 /*
  *  use in STA power saving mode
  *  when does we enter sleep? below conditions are neccesary
  *  OK,you can also change their value
  */
 #if (MT7681_POWER_SAVING == 1)
-#define PS_FCE_TXIDLE_TIME          (1*1000)       /* unit: msec */
-#define PS_UART_TRXIDLE_TIME        (3*1000)       /* unit: msec */
+#define PS_FCE_TXIDLE_PERIOD        (2)            /* COUNT */
+#define PS_RXWAIT_TIME              (10)           /* unit: msec */
+#define PS_UART_TRXIDLE_TIME        (1*1000)       /* unit: msec */
+#define PS_NULL_ACK_WAIT_TIME       (500)          // unit: usec,watch interval from log
+#define PS_NULL_ACK_WAIT_MAX        (3)           /* COUNT */
 #endif
 
 #define BEACON_LOST_TIME			(20*1000)	/* unit: msec */
@@ -92,41 +122,6 @@
 //typedef unsigned short UINT_16;
 typedef unsigned char UINT_8;
 typedef char TYPE;
-
-/* Reason code definitions */
-#define REASON_RESERVED                 0
-#define REASON_UNSPECIFY                1
-#define REASON_NO_LONGER_VALID          2
-#define REASON_DEAUTH_STA_LEAVING       3
-#define REASON_DISASSOC_INACTIVE        4
-#define REASON_DISASSPC_AP_UNABLE       5
-#define REASON_CLS2ERR                  6
-#define REASON_CLS3ERR                  7
-#define REASON_DISASSOC_STA_LEAVING     8
-#define REASON_STA_REQ_ASSOC_NOT_AUTH   9
-#define REASON_INVALID_IE               13
-#define REASON_MIC_FAILURE              14
-#define REASON_4_WAY_TIMEOUT            15
-#define REASON_GROUP_KEY_HS_TIMEOUT     16
-#define REASON_IE_DIFFERENT             17
-#define REASON_MCIPHER_NOT_VALID        18
-#define REASON_UCIPHER_NOT_VALID        19
-#define REASON_AKMP_NOT_VALID           20
-#define REASON_UNSUPPORT_RSNE_VER       21
-#define REASON_INVALID_RSNE_CAP         22
-#define REASON_8021X_AUTH_FAIL          23
-#define REASON_CIPHER_SUITE_REJECTED    24
-#define REASON_DECLINED                 37
-#define REASON_QOS_UNSPECIFY              32
-#define REASON_QOS_LACK_BANDWIDTH         33
-#define REASON_POOR_CHANNEL_CONDITION     34
-#define REASON_QOS_OUTSIDE_TXOP_LIMITION  35
-#define REASON_QOS_QSTA_LEAVING_QBSS      36
-#define REASON_QOS_UNWANTED_MECHANISM     37
-#define REASON_QOS_MECH_SETUP_REQUIRED    38
-#define REASON_QOS_REQUEST_TIMEOUT        39
-#define REASON_QOS_CIPHER_NOT_SUPPORT     45
-#define REASON_FT_INVALID_FTIE			  55
 
 /******************************************************************************
  * UART MACRO & STRUCTURE
@@ -181,6 +176,26 @@ typedef enum {
     PKT_ATCMD,
     PKT_IWCMD 
 } PKT_TYPE;
+
+
+/*
+ * UART RX to Air parameters
+ */
+#if (UARTRX_TO_AIR_LEVEL == 2)
+#define  UART2WIFI_TIMER_INTERVAL    300   //ms
+#define  UART2WIFI_LEN_THRESHOLD     10    //bytes
+
+
+#if (UART_INTERRUPT == 1)
+#define  UARTRX_TO_AIR_THRESHOLD   UARTRX_RING_LEN/2
+#else
+#define  UARTRX_TO_AIR_THRESHOLD   AT_CMD_MAX_LEN/2
+#endif
+
+#endif
+
+
+
 
 #if (UART_INTERRUPT == 1)
 
@@ -330,6 +345,7 @@ typedef struct _IOT_ADAPTER{
 	IOT_COM_CFG		ComCfg;
 	IOT_USR_CFG		UsrCfg;
 	UINT8 			flash_rw_buf[RAM_RW_BUF_SIZE];
+	UINT8           PWM_LVL;
 }IOT_ADAPTER;
 
 
@@ -439,7 +455,7 @@ typedef struct GNU_PACKED t_UART_Information
 typedef struct GNU_PACKED t_GPIO_Information
 {
 	UINT_32 GPIO_List;
-    UINT_32 GPIO_Value;
+	UINT_32 GPIO_Value;
 }GPIO_Information;
 
 typedef struct GNU_PACKED t_PWM_Information
@@ -465,7 +481,7 @@ typedef struct GNU_PACKED t_IoTHardwareRresource
 	UINT_32 GPIO_Rresource;	/*bitmap for GPIO status:   bit[n] = 1  means GPIO[n] enabled*/
 	UINT_32 UART_Rresource;	/*not used now , for extension*/
 	UINT_32 PWM_Rresource;	/*not used now , for extension*/
-	INT_8 GPIO_Count;		/*not used now , for extension*/
+	INT_8 GPIO_Count;
 	INT_8 UART_Count;		/*not used now , for extension*/
 	INT_8 PWM_Count;		/*not used now , for extension*/
 	
@@ -543,16 +559,23 @@ typedef struct GNU_PACKED _STATE_MACHINE {
 	UINT32				RetryCount;
 } STATE_MACHINE, *PSTATE_MACHINE;
 
-typedef struct GNU_PACKED _MLME_STRUCT {
+typedef struct _MLME_STRUCT {
+	TIMER_T			nullFrameTimer;
+	TIMER_T			BeaconTimer;
+	
 	/* STA state machines */
 	STATE_MACHINE	CntlMachine;
 	STATE_MACHINE	AssocMachine;
 	STATE_MACHINE	AuthMachine;
+	
 	WIFI_STATE		CurrentWifiState;
 	WIFI_STATE		PreWifiState;
-	BOOLEAN			UseFlashStaCfg;
-	BOOLEAN			VerfiyInit;
+
 	UINT8			DataEnable;
+	UINT8			PMLevel;	
+	BOOLEAN			ValidFlashStaCfg;
+	BOOLEAN			VerfiyInit;
+	BOOLEAN			ATSetSmnt;
 } MLME_STRUCT, *PMLME_STRUCT;
 
 
@@ -592,16 +615,6 @@ typedef enum _NDIS_802_11_AUTHENTICATION_MODE
 	Ndis802_11AuthModeMax           // Not a real mode, defined as upper bound
 } NDIS_802_11_AUTHENTICATION_MODE, *PNDIS_802_11_AUTHENTICATION_MODE;
 
-typedef struct GNU_PACKED _IOT_SMNT_INFO {
-	UCHAR  Ssid[MAX_LEN_OF_SSID+1];
-	UCHAR  SsidLen;
-	NDIS_802_11_AUTHENTICATION_MODE	AuthMode;	/* This should match to whatever microsoft defined */
-	UCHAR  Passphase[CIPHER_TEXT_LEN];
-	UINT8  PassphaseLen;
-	UCHAR  PMK[CIPHER_TEXT_LEN];				/* WPA2-PSK mode PMK */
-} IOT_SMNT_INFO, *PIOT_SMNT_INFO;
-
-
 typedef struct {
 	unsigned long   LastBeaconRxTime;
 	USHORT          Aid;
@@ -615,10 +628,11 @@ typedef struct {
     UCHAR           More_BMC;         /* TRUE if more BMC data (MoreData bit) */
 	UCHAR           More_UC;          /* TRUE if more UC  data (MoreData bit) */
     UCHAR           RxPsReady;        /* rx,whether rx ready to enter power saving mode */
+    UINT32          FCERxWaitTime;       /* rx jiffies,count begin with rx ready*/
     UINT32          FCELastTxTime;    /* tx,tx jiffies*/
-    UINT32          UARTLastTRTime;    /* uart last active time */
-    UINT32          LinkPollingTime;   /* ACTIVE NULL to polling link*/
-    UCHAR           PsMode;           /* whether notified AP we are in power saving mode*/
+    UINT32          UARTLastTRTime;   /* uart last active time */
+    UINT32          LinkPollingTime;  /* ACTIVE NULL to polling link*/
+    UCHAR           PsNotify;         /* whether need to notify AP before we enter sleep mode*/
 //#endif
 } STA_PWRSAV;
 
@@ -650,6 +664,7 @@ typedef struct GNU_PACKED _STA_ADMIN_CONFIG {
 
 	UINT8  Cfg_BW;            /* BW for current AP */
 	UINT8  Cfg_Channel;       /* Channel for current AP */
+	UINT8  ExtChanOffset;     /* EXTCHA_BELOW /EXTCHA_ABOVE /EXTCHA_NONE*/
 	UINT8  AP_PhyMode;        /* Phy mode for current AP */
 	UINT8  AP_MCS;        	  /* The MCS for current AP's Beacon */
 
@@ -711,7 +726,7 @@ typedef struct GNU_PACKED _STA_ADMIN_CONFIG {
 
 
 
-#define IOT_PWM_TYPE 		2 // 1 for Hardware pwm,   2 for Software pwm
+#define IOT_PWM_TYPE 		2   // 1 for Hardware pwm,   2 for Software pwm
 
 #if (IOT_PWM_SUPPORT == 1 && IOT_PWM_TYPE == 1)
 
@@ -721,8 +736,8 @@ typedef struct GNU_PACKED _STA_ADMIN_CONFIG {
 
 #define PWM_R_GPIO 			0
 #define PWM_G_GPIO 			1
-#define PWM_B_GPIO 			3 //gpio2 for button input
-#define PWM_HIGHEST_LEVEL 	20
+#define PWM_B_GPIO 			3   // gpio2 for button input
+#define PWM_HIGHEST_LEVEL 	20	/* PWM Freq = 1000/PWM_HIGHEST_LEVEL  */
 #define MAX_PWM_COUNT 		5
 
 typedef struct GNU_PACKED t_HWTimerPWMInfo
@@ -757,6 +772,9 @@ VOID  Printf_High(const char *fmt, ...);
 VOID *malloc(unsigned long size);
 VOID free(void *ptr);
 
+void DelayTick(BYTE Time);
+void usecDelay(UINT32 micro);
+void msecDelay(UINT32 milli);
 
 
 
@@ -790,8 +808,10 @@ VOID IoT_software_pwm_init(VOID);
 #if (IOT_PWM_TYPE == 1)
 int IoT_led_pwm(int led_num, int brightness);
 #elif (IOT_PWM_TYPE == 2)
-INT32 IoT_software_pwm_addset(INT32 led_num, INT32 brightness);
+INT32 IoT_software_pwm_addset(INT32 led_num, INT32 brightness)  XIP_ATTRIBUTE(".xipsec0");
 #define IoT_led_pwm IoT_software_pwm_addset
+
+INT32 IoT_software_pwm_del(INT32 led_num)  XIP_ATTRIBUTE(".xipsec0");
 #endif
 
 #endif
@@ -814,6 +834,9 @@ INT32 IoT_gpio_input(INT32 gpio_num,  UINT32 *input);
 ========================================================================*/
 VOID IoT_Cust_GPIINT_Hdlr(IN UINT8 GPI_STS);
 
+VOID IoT_Cust_HW_Timer1_Hdlr(VOID);
+
+UINT32 IoT_Cust_Get_HW_Timer1_TICK_HZ(VOID);
 /*========================================================================
 	Routine	Description:
 		IoT_Cust_Set_GPIINT_MODE --  Set GPIO interrupt mode
@@ -857,25 +880,28 @@ VOID   IoT_jtag_mode_switch(UINT8 switch_on);
 UINT32 IoT_jtag_mode_get(void);
 
 
-VOID   Sys_reboot(VOID) XIP_ATTRIBUTE(".xipsec0");
-VOID   IoT_Cmd_LinkDown(USHORT reason);
 INT32  IoT_Xmodem_Update_FW(VOID);
-VOID   IoT_Cmd_Set_Channel(UINT8 Channel);
-
+VOID   Sys_reboot(VOID)                   XIP_ATTRIBUTE(".xipsec0");
+VOID   IoT_Cmd_LinkDown(USHORT reason)    XIP_ATTRIBUTE(".xipsec0");
+VOID   IoT_Cmd_Set_Channel(UINT8 Channel) XIP_ATTRIBUTE(".xipsec0");
+INT    AsicSetChannel(UCHAR ch, UCHAR bw, UCHAR ext_ch) XIP_ATTRIBUTE(".xipsec0");
+INT    rtmp_bbp_set_ctrlch(INT ext_ch) XIP_ATTRIBUTE(".xipsec0");
+INT    rtmp_mac_set_ctrlch(INT extch) XIP_ATTRIBUTE(".xipsec0");
 
 
 /*if all data is 0xFF or 0x00, we assume it is invalide*/
-BOOLEAN check_data_valid(PUINT8 pdata, UINT16 len);
-BOOLEAN load_sta_cfg(VOID)   XIP_ATTRIBUTE(".xipsec0");
+BOOLEAN check_data_valid(PUINT8 pdata, UINT16 len)   XIP_ATTRIBUTE(".xipsec0");
+BOOLEAN load_sta_cfg(VOID)             XIP_ATTRIBUTE(".xipsec0");
+VOID    store_sta_cfg(VOID)            XIP_ATTRIBUTE(".xipsec0");
 BOOLEAN reset_sta_cfg(VOID);   /*jinchuan ,not declare this function as XIP func, to avoid system halt*/
-VOID    store_sta_cfg(VOID)  XIP_ATTRIBUTE(".xipsec0");
 
-VOID IoT_Cust_SMNT_Sta_Chg_Init(VOID);
+VOID IoT_Cust_SMNT_Sta_Chg_Init(VOID)  XIP_ATTRIBUTE(".xipsec0");
 VOID IoT_Cust_SM_Smnt(VOID);
 //VOID IoT_Cust_Rx_Handler(PHEADER_802_11 pHeader, USHORT DataSize);
 
 
-
+/* Beacon loss timeout handler */
+VOID BeaconTimeoutAction(UINT_32 param, UINT_32 param2);
 
 
 INT32  IoT_process_app_packet(
@@ -898,12 +924,25 @@ INT32  IoT_build_app_response_header(
 			UINT_8 ProtoSubType, 
 			UINT_16 DataType, 
 			UINT_16 DataLen, 
-			struct t_IoTPacketInfo *PacketInfo);
+			struct t_IoTPacketInfo *PacketInfo) XIP_ATTRIBUTE(".xipsec0");
 
 INT32  IoT_process_app_function_packet(
 		DataHeader* Dataheader, 
 		UINT8 FunctionType, 
-		IoTPacketInfo  *pPacketInfo);
+		IoTPacketInfo  *pPacketInfo) XIP_ATTRIBUTE(".xipsec0");;
+
+INT32 IoT_process_app_management_packet(
+		DataHeader* Dataheader, 
+		UINT16 ManagementType, 
+		IoTPacketInfo  *pPacketInfo) XIP_ATTRIBUTE(".xipsec0");
+
+INT32 IoT_send_udp_directly(
+	        uip_ipaddr_t *DstAddr,
+	        PUCHAR DstMAC,
+	        UINT16 SrcPort,
+	        UINT16 DstPort,
+	        PUCHAR pPayload, 
+	        UINT16 PayloadLen);	
 
 VOID   IoT_cp_app_connection_init(VOID);
 INT16  IoT_cp_app_connection_connected(UINT8 fd
@@ -921,8 +960,19 @@ struct cp_app_conn * IoT_cp_app_search_connection(UINT8 fd);
 
 VOID  uip_send(const void *data, UINT16 len);
 
-
-
+/*========================================================================
+	Routine	Description:
+		GetClearFrameFlag -- get the clear frame flag
+		GetClearFrameFlag=False, after 7681 scanned AP which its AuthMode!=0
+		GetClearFrameFlag=False, while 7681 Smnt received PasswordLen!=0,  and scanned AP AuthMode=0
+		GetClearFrameFlag=TRUE, in other case
+	Arguments:
+	Return Value:  
+	        TRUE --Frame should be clear frame , and not be encrypted,  
+	        FALSE--Frame should be encrypted
+	Note: 
+========================================================================*/
+BOOLEAN GetClearFrameFlag();
 
 
 
@@ -952,9 +1002,16 @@ INT32 iot_netif_cfg(UINT8 *ip, UINT8 *mask, UINT8 * gw, UINT8 *dns);
 
 
 
+/* AES definition & structure */
 #define AES_STATE_ROWS 4     /* Block size: 4*4*8 = 128 bits */
 #define AES_STATE_COLUMNS 4
 #define AES_BLOCK_SIZES (AES_STATE_ROWS*AES_STATE_COLUMNS)
+#define AES_KEY_ROWS 4
+#define AES_KEY_COLUMNS 8    /*Key length: 4*{4,6,8}*8 = 128, 192, 256 bits */
+#define AES_KEY128_LENGTH 16
+#define AES_KEY192_LENGTH 24
+#define AES_KEY256_LENGTH 32
+#define AES_CBC_IV_LENGTH 16
 
 
 /*
@@ -980,7 +1037,7 @@ VOID RT_AES_Decrypt (
     UINT8 Key[],
     UINT KeyLength,
     UINT8 PlainBlock[],
-    UINT *PlainBlockSize);
+    UINT *PlainBlockSize);  /* This function is located on ROM, no need declare as XIP */
 
 /*
 ========================================================================
@@ -1007,6 +1064,73 @@ VOID RT_AES_Encrypt (
     UINT8 CipherBlock[],
     UINT *CipherBlockSize);
 
+
+/*
+========================================================================
+Routine Description:
+    AES-CBC encryption
+
+Arguments:
+    PlainText        Plain text
+    PlainTextLength  The length of plain text in bytes
+    Key              Cipher key, it may be 16, 24, or 32 bytes (128, 192, or 256 bits)
+    KeyLength        The length of cipher key in bytes
+    IV               Initialization vector, it may be 16 bytes (128 bits)
+    IVLength         The length of initialization vector in bytes
+    CipherTextLength The length of allocated cipher text in bytes
+
+Return Value:
+    CipherText       Return cipher text
+    CipherTextLength Return the length of real used cipher text in bytes
+
+Note:
+    Reference to RFC 3602 and NIST 800-38A
+========================================================================
+*/
+/* AES-CBC operations */
+VOID AES_CBC_Encrypt (
+    UINT8 PlainText[],
+    UINT  PlainTextLength,
+    UINT8 Key[],
+    UINT  KeyLength,
+    UINT8 IV[],
+    UINT IVLength,
+    UINT8 CipherText[],
+    UINT *CipherTextLength);
+
+/*
+========================================================================
+Routine Description:
+    AES-CBC decryption
+
+Arguments:
+    CipherText       Cipher text
+    CipherTextLength The length of cipher text in bytes
+    Key              Cipher key, it may be 16, 24, or 32 bytes (128, 192, or 256 bits)
+    KeyLength        The length of cipher key in bytes
+    IV               Initialization vector, it may be 16 bytes (128 bits)
+    IVLength         The length of initialization vector in bytes
+    PlainTextLength  The length of allocated plain text in bytes
+
+Return Value:
+    PlainText        Return plain text
+    PlainTextLength  Return the length of real used plain text in bytes
+
+Note:
+    Reference to RFC 3602 and NIST 800-38A
+========================================================================
+*/
+VOID AES_CBC_Decrypt (
+    UINT8 CipherText[],
+    UINT  CipherTextLength,
+    UINT8 Key[],
+    UINT  KeyLength,
+    UINT8 IV[],
+    UINT IVLength,
+    UINT8 PlainText[],
+    UINT *PlainTextLength);
+
+
 /* 
 * password - ascii string up to 63 characters in length 
 * ssid - octet string up to 32 octets 
@@ -1019,7 +1143,10 @@ int RtmpPasswordHash(
 	INT ssidlength, 
 	PUCHAR output);
 
-
+VOID RTMPMakeRSNIE(
+    IN  UINT            AuthMode,
+    IN  UINT            WepStatus,
+    IN  UCHAR           apidx)  XIP_ATTRIBUTE(".xipsec0");
 
 
 #if (ATCMD_ATE_SUPPORT == 1)
@@ -1032,9 +1159,10 @@ BOOLEAN Set_ATE_TX_FREQ_OFFSET_Proc(IN UINT8 RfFreqOffset);
 BOOLEAN	Set_ATE_TX_GI_Proc(IN UINT8 TxWIShortGI);
 BOOLEAN	Set_ATE_TX_COUNT_Proc(IN UINT32 TxCount);
 BOOLEAN Set_ATE_TX_POWER(IN UINT32 TxPower);
-BOOLEAN Set_ATE_Efuse_Read(IN USHORT Offset, OUT UINT8 *pdata);
 BOOLEAN Set_ATE_Efuse_Write(IN USHORT Offset,  IN UINT8 data);
 #endif
+BOOLEAN Set_ATE_Efuse_Read(IN USHORT Offset, OUT UINT8 *pdata) XIP_ATTRIBUTE(".xipsec0");
+
 
 #if (UART_INTERRUPT == 1)
 void UART_Tx_Cb(void);
@@ -1043,6 +1171,9 @@ void UART_Rx_Packet_Dispatch(void);
 void UARTRx_Buf_Init(UARTStruct *qp);
 #endif
 
+
+
+INT16 IoT_parse_ATcommand(PCHAR cmd_buf, INT16 at_cmd_len) XIP_ATTRIBUTE(".xipsec0");
 
 VOID IoT_AT_cmd_resp_header(INT8 *pHeader, size_t* plen, INT8* ATcmdPrefix, INT8* ATcmdType) XIP_ATTRIBUTE(".xipsec0");
 
@@ -1055,6 +1186,10 @@ INT16 IoT_exec_AT_cmd_ATE_Cal2(PCHAR command_buffer, INT16 at_cmd_len) XIP_ATTRI
 UINT8 RTMPIoctlE2PROM(BOOLEAN type, char *pBuf, INT16 Len)  XIP_ATTRIBUTE(".xipsec0");
 UINT8 ATE_CMD_CALI_SET_HANDLE(char *pBuf, INT16 Len) XIP_ATTRIBUTE(".xipsec0");
 INT16 IoT_exec_AT_cmd_ATE_Cal(PCHAR cmd_buf, INT16 Len) XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if ((ATCMD_PS_SUPPORT == 1) && (MT7681_POWER_SAVING == 1))
+INT16 IoT_exec_AT_cmd_PS_Set(PCHAR command_buffer, INT16 at_cmd_len) XIP_ATTRIBUTE(".xipsec0");
 #endif
 
 #if (ATCMD_FLASH_SUPPORT == 1)
@@ -1081,6 +1216,10 @@ INT16 IoT_exec_AT_cmd_Conf_SoftAP(PCHAR pCmdBuf, INT16 at_cmd_len)  XIP_ATTRIBUT
 
 #if (ATCMD_REBOOT_SUPPORT == 1)
 VOID IoT_exec_AT_cmd_reboot(VOID)  XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_SET_SMNT_SUPPORT == 1)
+INT16 IoT_exec_AT_Set_Smnt(PCHAR pCmdBuf)  XIP_ATTRIBUTE(".xipsec0");
 #endif
 
 #if (ATCMD_GET_VER_SUPPORT == 1)

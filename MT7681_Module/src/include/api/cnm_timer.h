@@ -167,8 +167,7 @@ cnmTimerInitialize (
     task_indx_type              eTaskId
     );
 #else
-VOID
-cnmTimerInitialize();
+VOID cnmTimerInitialize() XIP_ATTRIBUTE(".xipsec0");
 #endif
 
 VOID

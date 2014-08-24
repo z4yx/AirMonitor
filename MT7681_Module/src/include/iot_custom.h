@@ -36,9 +36,8 @@
 #define		AT_CMD_MAX_LEN 			(150)
 
 
-
-#define     FW_VERISON_CUST     	"IoT_V1.20"
-
+#define     FW_VERISON_CUST     	"IoT_V1.50"
+#define 	DEFAULT_DHCP_HOST_NAME  "MT7681"
 
 /******************************************************************************
  * MACRO DEFINITION  for AT Comamnd
@@ -62,6 +61,9 @@
 #define		AT_CMD_VER				"Ver"
 #define		AT_CMD_REBOOT			"Reboot"
 #define		AT_CMD_DEFAULT			"Default"
+#define		AT_CMD_SET_SMNT			"Smnt"
+
+
 #define		AT_CMD_TCPUDP			"TcpUdp "        /*set tcp/udp*/
 #define		AT_CMD_TCPUDP_MODE		"TcpUdpMode "    /*set server/client*/
 #define		AT_CMD_SLEEP			"Sleep "
@@ -93,6 +95,7 @@
 #define		AT_CMD_BBP_SET			"BBP "
 #define		AT_CMD_RF_SET			"RF "
 #define		AT_CMD_SLT_CTL			"SLT"
+#define		AT_CMD_PS_SET			"PowerSaving "
 
 
 
@@ -101,7 +104,8 @@
 /*Default output value for GPIO0~4*/
 #define		DEFAULT_GPIO04_OUTVAL   (1)
 
-
+/*Frequency for hardware timer 1 interrupt,  1 ~ 10*/
+#define TICK_HZ_HWTIMER1	10 	/* T=1/TICK_HZ_HWTIMER1  */
 
 
 typedef enum t_UartRxMode

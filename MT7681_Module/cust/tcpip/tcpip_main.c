@@ -125,11 +125,22 @@ _tcpip_init(void)
 	p: pointer to data buffer, the buffer should start with eth header.
 	len: buffer len
  */
+#include "../uip/uip.h"
 
 int netif_rx(u8_t *p, u16_t len)
 {
-	mt76xx_dev_read(p, len);
+	/*avoid Rx packet length > UIP buffer size  and cause UIP buffer overflow*/
+	if(len <= UIP_BUFSIZE + 2)
+	{
+		mt76xx_dev_read(p, len);
+	}
+	else 
+	{
+		Printf_High("netif_rx length error: %d > %d\n", len, UIP_BUFSIZE + 2);
+		return -1;
+	}
 
+	
 	if(uip_len > 0) {
 		if(BUF->type == htons(UIP_ETHTYPE_IP)) {
 			uip_arp_ipin();
@@ -193,12 +204,14 @@ void tcpip_periodic_timer()
     }
 
 	if(timer_expired(&cli_timer)) {
-		clk = clk>CLOCK_SECOND*60?clk:clk*2;
+		clk = (clk > (CLOCK_SECOND*60))?clk:(clk*2);
 		timer_set(&cli_timer, clk);
+		
 		if ((cli_fd == -1) && 
 			memcmp(uip_hostaddr, 0x00000000, sizeof(uip_hostaddr))) {
 			struct uip_conn *conn = NULL;
 			uip_ipaddr_t srv_ip;
+			
 			uip_ipaddr(srv_ip, IoTpAd.ComCfg.IoT_ServeIP[0], IoTpAd.ComCfg.IoT_ServeIP[1],
 					IoTpAd.ComCfg.IoT_ServeIP[2], IoTpAd.ComCfg.IoT_ServeIP[3]);
 			conn = uip_connect(&srv_ip, HTONS(IoTpAd.ComCfg.IoT_TCP_Srv_Port));

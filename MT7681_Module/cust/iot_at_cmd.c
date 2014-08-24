@@ -16,20 +16,20 @@
 * DESIGNER:        
 * DATE:            Jan 2013
 *
-*最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
+* SOURCE CONTROL:
 *
 * LICENSE:
 *     This source code is copyright (c) 2011 Ralink Tech. Inc.
 *     All rights reserved.
 *
-* 深圳市安信可科技 MTK7681串口模块专业生产厂家 
+* REVISION     HISTORY:
 *   V1.0.0     Jan 2012    - Initial Version V1.0
 *
 *
-* 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
+* SOURCE:
 * ISSUES:
 *    First Implementation.
-* 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
+* NOTES TO USERS:
 *
 ******************************************************************************/
 
@@ -62,6 +62,7 @@ extern ATE_INFO gATEInfo;
 extern 	char *optarg; 
 extern  INT16 optind; 
 extern  int iot_uart_rx_mode;
+extern  MLME_STRUCT *pIoTMlme;
 
 #if (EP_LOAD_SUPPORT == 1)
 extern EEPROM_CFG eepcfg;
@@ -681,6 +682,64 @@ INT16 IoT_exec_AT_cmd_Efuse_Set(PCHAR command_buffer, INT16 at_cmd_len)
 }
 #endif
 
+#if ((ATCMD_PS_SUPPORT == 1) && (MT7681_POWER_SAVING == 1))
+/* Format:	AT#PowerSaving -l0 -t16777215+enter*/
+/* -l :  range 1~5 */
+/* -t :  range 0~0xFFFFFF   sleepTime = us*/
+/* Format:	AT#PowerSaving -r+enter*/
+INT16 IoT_exec_AT_cmd_PS_Set(PCHAR command_buffer, INT16 at_cmd_len)
+{
+	char *argv[MAX_OPTION_COUNT];
+	char *opString = "r::l:t:?";
+	char *endptr = NULL;
+	INT16 argc = 0;
+	char opt = 0;
+	
+	UINT8  Level = 0;
+	UINT32 SleepTime = 0;
+	
+	split_string_cmd(command_buffer, at_cmd_len, &argc, argv);
+
+	opt = getopt(argc, argv, opString);
+
+	while (opt != -1)
+	{	
+		switch (opt)
+		{
+			case 'l':
+				/*write power saving level*/
+				Level = (UINT8)simple_strtol(optarg,&endptr,0);
+				if((Level>0) && (Level<=5))
+				{
+					Printf_High("[PS Lvl]=%d\n",Level);
+					pIoTMlme->PMLevel = Level;
+				}
+				break;
+			case 't':
+				/*power sleep time*/
+				SleepTime = (UINT32)simple_strtol(optarg,&endptr,0);
+				if((Level>0) && (Level<=5))
+				{
+					Printf_High("[PS] Lvl=%d Sleep=%u(us)\n",Level,SleepTime);
+					LowPower(0,Level,SleepTime);
+				}
+				break;
+			case 'r':
+				/*read power saving level*/
+				Printf_High("[PS Lvl]=%d\n",pIoTMlme->PMLevel);
+				break;
+			case '?':
+			default:
+				break;
+		}
+		opt = getopt(argc, argv, opString);
+	}
+
+	return 0;
+}
+#endif
+
+
 #if (ATCMD_NET_MODE_SUPPORT == 1)
 INT16 IoT_exec_AT_cmd_netmode(PCHAR command_buffer, INT16 at_cmd_len)
 {
@@ -692,30 +751,55 @@ INT16 IoT_exec_AT_cmd_netmode(PCHAR command_buffer, INT16 at_cmd_len)
 #if (ATCMD_CH_SWITCH_SUPPORT == 1)
 /*========================================================================
 	Routine	Description:
-		IoT_exec_AT_cmd_ch_switch --  switch channel
-		
+		IoT_exec_AT_cmd_ch_switch --  switch channel and Bandwidth
+		-b:  [0/1]   0=BW_20,    1=BW_40
+		-c:  [1~14]
 	Arguments:
 	Return Value: 0 is success
-	Note:  In present , the channel range is channel 0~13, and Bandwidth is only support 20MHz
+	Note:  In present , the channel range is channel 1~14, and Bandwidth is only support 20MHz
 ========================================================================*/
 INT16 IoT_exec_AT_cmd_ch_switch(PCHAR pCmdBuf, INT16 at_cmd_len)
 {
-	INT8 len, num = 0;
+	char *argv[MAX_OPTION_COUNT];
+	char *opString = "b:c:?";
+	char *endptr = NULL;
+	INT16 argc = 0;
+	char opt = 0;
+	
+	UINT8  bbp = BW_20;
+	UINT8  ch  = 0;
+	
+	split_string_cmd(pCmdBuf, at_cmd_len, &argc, argv);
 
-	len = 3;	//(INT8)strlen("-s ");
-	if(!memcmp(pCmdBuf ,"-s ", len))
-	{	
-		pCmdBuf += len;
-		at_cmd_len -= len;
+	opt = getopt(argc, argv, opString);
 
-		if(at_cmd_len < 0)
-			return -1;
-
-		num = (INT8)atoi((const int8 *)pCmdBuf);
-		if (num > 14 || num < 0 )
-			return -1;
-
-		IoT_Cmd_Set_Channel((UINT8)num);
+	while (opt != -1)
+	{
+		switch (opt)
+		{
+			case 'b':
+				/*power saving level*/
+				bbp = (UINT8)simple_strtol(optarg,&endptr,0);
+				if ((bbp==BW_20) || (bbp==BW_40))
+				{
+					Printf_High("[Set BBP]=%d\n",bbp);
+					rtmp_bbp_set_bw(bbp);
+				}
+				break;
+			case 'c':
+				/*power sleep time*/
+				ch = (UINT8)simple_strtol(optarg,&endptr,0);
+				if ((ch >0) && (ch <= 14))
+				{
+					Printf_High("[Set CH]=%d\n",ch);
+					IoT_Cmd_Set_Channel(ch);
+				}
+				break;
+			case '?':
+			default:
+				break;
+		}
+		opt = getopt(argc, argv, opString);
 	}
 
 	return 0;
@@ -726,17 +810,17 @@ INT16 IoT_exec_AT_cmd_ch_switch(PCHAR pCmdBuf, INT16 at_cmd_len)
 #ifdef CONFIG_SOFTAP
 /*========================================================================
 	Routine	Description:
-		IoT_exec_AT_cmd_ch_switch --  switch channel
+		IoT_exec_AT_cmd_Conf_SoftAP --  set soft ap configration
 		
 	Arguments:
 	Return Value: 0 is success
-	Note:  In present , the channel range is channel 0~13, and Bandwidth is only support 20MHz
+	Note:  
 ========================================================================*/
 INT16 IoT_exec_AT_cmd_Conf_SoftAP(PCHAR pCmdBuf, INT16 at_cmd_len)
 {
 	int argc = 0;
 	char *argv[MAX_OPTION_COUNT];
-	char *opString = "s:c:a:p:?";
+	char *opString = "s:c:a:p:m:d:?";
 	int opt;
 	char *endptr;
 	
@@ -763,22 +847,36 @@ INT16 IoT_exec_AT_cmd_Conf_SoftAP(PCHAR pCmdBuf, INT16 at_cmd_len)
 			SSIDLen = strlen(optarg);
 			if (SSIDLen > MAX_SSID_PASS_LEN)
 			{
-				SSIDLen = MAX_SSID_PASS_LEN;
+				return -1;
 			}
 			memcpy(SSID, optarg, SSIDLen);
 			Printf_High("AT#SSID:[%s], Len = %d\n",SSID, strlen(optarg));
 			break;
-		case 'a':
+		case 'a':  /*only support Open now*/
+			if (strlen(optarg) > MAX_AUTH_MODE_LEN)
+			{
+				return -2;
+			}
 			memcpy(Auth_Mode, optarg, strlen(optarg));
 			Printf_High("AT#Auth_Mode:%s\n",Auth_Mode);
 			break;
-		case 'p':			
+		case 'p':  /*not support password now*/
+			if (strlen(optarg) > MAX_SSID_PASS_LEN)
+			{
+				return -3;
+			}
 			memcpy(Password, optarg, strlen(optarg));
 			Printf_High("AT#Password:%s\n",Password);
 			break;
 		case 'c':			
 			Channel = atoi(optarg);
 			Printf_High("AT#Channel:%d\n",Channel);
+			break;
+		case 'm':
+			store_ap_cfg();
+			break;
+		case 'd':
+			reset_ap_cfg();
 			break;
 		case '?':
 		default:
@@ -789,6 +887,7 @@ INT16 IoT_exec_AT_cmd_Conf_SoftAP(PCHAR pCmdBuf, INT16 at_cmd_len)
 	}
 
 	Config_SoftAP(SSID, Auth_Mode, Password, Channel);
+	
 	return 0;
 }
 #endif
@@ -808,6 +907,27 @@ VOID IoT_exec_AT_cmd_reboot(VOID)
 	return;
 }
 #endif
+
+#if (ATCMD_SET_SMNT_SUPPORT == 1)
+/*========================================================================
+	Routine Description:
+		IoT_exec_AT_Set_Smnt -- Enable Smart Connection
+		System will enter into SmartConnection State,  until System get IP from AP or System Reboot
+		
+	Arguments:
+	Return Value: 0 is success,  -1 is out of memory
+	Note:
+========================================================================*/
+INT16 IoT_exec_AT_Set_Smnt(PCHAR pCmdBuf)
+{
+	pIoTMlme->ATSetSmnt = TRUE;
+	
+	wifi_state_chg(WIFI_STATE_INIT, 0);
+	
+	return 0;
+}
+#endif
+
 
 #if (ATCMD_GET_VER_SUPPORT == 1)
 /*========================================================================
@@ -927,7 +1047,14 @@ INT16 IoT_parse_ATcommand(PCHAR cmd_buf, INT16 at_cmd_len)
 	{
 		reset_cfg();
 		IoT_Cmd_LinkDown(0);   //disable Link Down to fix STA machine keeps SMNT and no reponse
-	}	
+	}
+#if (ATCMD_SET_SMNT_SUPPORT == 1)
+	/* Format:  AT#Smnt+enter*/
+	else if(!memcmp(cmd_buf,AT_CMD_SET_SMNT,sizeof(AT_CMD_SET_SMNT)-1))
+	{
+		ret_code = IoT_exec_AT_Set_Smnt(cmd_buf);
+	}
+#endif	
 #if (ATCMD_GET_VER_SUPPORT == 1)
 	/* Format:  AT#Ver+enter*/
 	else if(!memcmp(cmd_buf,AT_CMD_VER,sizeof(AT_CMD_VER)-1))
@@ -949,25 +1076,27 @@ INT16 IoT_parse_ATcommand(PCHAR cmd_buf, INT16 at_cmd_len)
 	}
 #endif	
 #if (ATCMD_CH_SWITCH_SUPPORT == 1)
-	/* Format:  AT#Channel -s 6+enter */
+	/* Format:  AT#Channel -b0 -c6+enter */
+	//-b:  [0/1]	 0=BW_20,	 1=BW_40
+	//-c:  [1~14]
 	else if(!memcmp(cmd_buf,AT_CMD_CHANNEL,sizeof(AT_CMD_CHANNEL)-1))
 	{
-		cTypeLen = strlen(AT_CMD_CHANNEL);
-		cmd_buf += cTypeLen;
-		
-		at_cmd_len -= cTypeLen;
-		if(at_cmd_len > 0)
-		{
-			ret_code = IoT_exec_AT_cmd_ch_switch(cmd_buf, at_cmd_len);
-		}
+		ret_code = IoT_exec_AT_cmd_ch_switch(cmd_buf, at_cmd_len);
 	}
 #endif
 #if	(ATCMD_SOFTAP_SUPPORT == 1) && (ATCMD_SUPPORT == 1)	
-/* Format:	AT#SoftAPConf -s[ssid] -c[channel] -a[auth_mode] -p[password]+enter*/	
-else if(!memcmp(cmd_buf,AT_CMD_SOFTAP_CFG, sizeof(AT_CMD_SOFTAP_CFG)-1))	
-	{		
-		IoT_exec_AT_cmd_Conf_SoftAP(cmd_buf, at_cmd_len);			
-		Printf_High("Config SoftAP\n");	
+	/* Format:	AT#SoftAPConf -s[ssid] -c[channel] -a[auth_mode] -p[password]+enter*/
+    /*                 now, only support Open mode without password */
+	/* Format:	AT#SoftAPConf -m1+enter    --->store current AP setting to flash*/	
+	/* Format:	AT#SoftAPConf -d1+enter     --->clear AP setting in flash*/	
+	else if(!memcmp(cmd_buf,AT_CMD_SOFTAP_CFG, sizeof(AT_CMD_SOFTAP_CFG)-1))	
+	{
+		ret_code = IoT_exec_AT_cmd_Conf_SoftAP(cmd_buf, at_cmd_len);
+		
+		if(ret_code == 0)
+			Printf_High("Config SoftAP success\n");
+		else
+			Printf_High("Config SoftAP fail: %d\n", ret_code);
 	}
 #endif
 
@@ -1003,6 +1132,13 @@ else if(!memcmp(cmd_buf,AT_CMD_SOFTAP_CFG, sizeof(AT_CMD_SOFTAP_CFG)-1))
 	else if(!memcmp(cmd_buf,AT_CMD_UART,sizeof(AT_CMD_UART)-1))
 	{
 		ret_code = IoT_exec_AT_cmd_uart(cmd_buf, at_cmd_len);
+	}
+#endif
+#if ((ATCMD_PS_SUPPORT == 1) && (MT7681_POWER_SAVING == 1))
+	/* Format:	AT#PowerSaving -l0 -t2000+enter*/ /* sleepTime = us */
+	else if(!memcmp(cmd_buf,AT_CMD_PS_SET,sizeof(AT_CMD_PS_SET)-1))
+	{
+		ret_code = IoT_exec_AT_cmd_PS_Set(cmd_buf, at_cmd_len);
 	}
 #endif
 

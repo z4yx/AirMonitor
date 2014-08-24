@@ -78,8 +78,8 @@ void dhcpc_set_state(u8_t state);
 void handle_dhcp(void);
 void _handle_dhcp(void) OVLY_ATTRIBUTE(".ovlysec10");
 
-VOID ws_got_ip(VOID);
-VOID ws_got_ip_fail(VOID);
+VOID ws_got_ip(VOID)   XIP_ATTRIBUTE(".xipsec1");
+VOID ws_got_ip_fail(VOID)  XIP_ATTRIBUTE(".xipsec1");
 
 //typedef struct dhcpc_state uip_udp_appstate_t;
 //#define UIP_UDP_APPCALL dhcpc_appcall

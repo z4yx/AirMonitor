@@ -101,7 +101,7 @@ typedef unsigned short uip_stats_t;
 #if CFG_SUPPORT_TCPIP_ROBUST_TEST
 #define UIP_CONF_MAX_LISTENPORTS 2
 #else
-#define UIP_CONF_MAX_LISTENPORTS 1
+#define UIP_CONF_MAX_LISTENPORTS 4 //Jody for more connections
 #endif
 /**
  * Maximum number of UDP connections..
@@ -109,6 +109,16 @@ typedef unsigned short uip_stats_t;
  * \hideinitializer
  */
 #define UIP_CONF_UDP_CONNS 4
+
+
+/**
+ * Enable/Disable TCP/IP packet reTransmit
+ *
+ * \hideinitializer
+ */
+
+#define CFG_SUPPORT_TCP_REXMIT	1
+
 
 /**
  * uIP buffer size.
@@ -169,6 +179,7 @@ typedef unsigned short uip_stats_t;
  */
 #define UIP_CONF_RESOLV_ENTRIES 1
 
+#define UIP_HTTP_CLIENT_SUPPORT 1
 /* Here we include the header file for the application(s) we use in
    our project. */
 /*#include "smtp.h"*/

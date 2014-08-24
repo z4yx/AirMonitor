@@ -41,8 +41,4 @@ extern ULONG _novlyr;
 UINT8 overlayload(ULONG ovlyno);
 void overlayunload(ULONG ovlyno);
 
-
-
 #endif
-
-

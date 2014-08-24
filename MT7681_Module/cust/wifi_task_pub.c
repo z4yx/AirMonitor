@@ -13,6 +13,10 @@
 #include "iot_custom.h"
 #include "eeprom.h"
 
+#ifdef CONFIG_SOFTAP
+#include "ap_pub.h"
+#endif
+
 /*****************************************************************
   Defination
 ******************************************************************/
@@ -39,16 +43,17 @@ extern UINT16 gRecoveryModeTime;
 
 extern IOT_ADAPTER   IoTpAd;
 extern IOT_CUST_OP   IoTCustOp;
-extern IOT_SMNT_INFO IoTSmntInfo;
 
 /*****************************************************************
   Global Paramter
 ******************************************************************/
 MLME_STRUCT 	 *pIoTMlme;
-STA_ADMIN_CONFIG *pIoTStaCfg;
 
 #ifdef CONFIG_SOFTAP
+AP_ADMIN_CONFIG  *pIoTApCfg;
 UINT8 g_SoftAPStartFlag = 0;
+#else
+STA_ADMIN_CONFIG *pIoTStaCfg;
 #endif
 
 /*to indicated wheter store the SMNT setting after Wifi Connected AP and Got IP*/
@@ -56,7 +61,7 @@ BOOLEAN gSmnted = FALSE;
 
 /*gCurrentAddress shall be set in sys_init() as the value stored in flash sta cfg region if the value in flash is valid*/
 UCHAR gCurrentAddress[MAC_ADDR_LEN]	=	{0x00, 0x0c, 0x43, 0x12, 0x34, 0xf3}; 
-
+UCHAR BCAST_ADDR[MAC_ADDR_LEN]  	= 	{0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 /*****************************************************************
   Extern Function
@@ -114,7 +119,9 @@ VOID wifi_rx_proc(VOID)
 VOID 
 wifiTASK_LowPrioTask (VOID)
 {
-	static int	cnt = 0;
+	static UINT32 PreTime = 0;
+	UINT32 CurTime = 0;
+
 #if (ATCMD_RECOVERY_SUPPORT==1)
 	static int	RecCnt = 0;
 #endif
@@ -181,7 +188,11 @@ wifiTASK_LowPrioTask (VOID)
 		 if (g_SoftAPStartFlag == 0)
 		 {
 			 APInitialize();
+
+			 APStartUp();
+			 
 			 Printf_High("Start AP ...\n");
+			 
 			 g_SoftAPStartFlag = 1; 
 		 }	 
 	 #endif
@@ -197,19 +208,22 @@ wifiTASK_LowPrioTask (VOID)
 	if (IoTCustOp.IoTCustSubTask1 != NULL)
 		IoTCustOp.IoTCustSubTask1();
 	
-
 	/* stay alive message */
-	if((cnt++) > 5000)
+	CurTime = GetMsTimer();
+	if((CurTime < PreTime) ||
+	   (CurTime - PreTime) > (5*1000))  /* Print LOG per 5s */
 	{ 
+		PreTime = CurTime;
+		
 #if (ATCMD_ATE_SUPPORT == 1)
 		if	(gCaliEnabled == TRUE)
-			Printf_High("[CalTask]%d \n", GetMsTimer());
+			Printf_High("[CalTask]%u \n", PreTime);
 		else
-			Printf_High("[RTask]%d \n", GetMsTimer());
+			Printf_High("[RTask]%u \n", PreTime);
 #else	
-		Printf_High("[WTask]%d \n", GetMsTimer());
+		Printf_High("[WTask]%u \n", PreTime);
 #endif
-		cnt = 0;
+
 	}
 
 	if(GetFceIntStat() == 0)
@@ -219,7 +233,7 @@ wifiTASK_LowPrioTask (VOID)
  * No anything,go to sleep
  */
 #if (MT7681_POWER_SAVING == 1)
-    STAPowerSaving();
+    STAPowerSaving(pIoTMlme->PMLevel);
 #endif	
 
 }
@@ -346,10 +360,11 @@ VOID ws_init(OUT BOOLEAN *pb_enable)
 	memset(pIoTStaCfg->R_Counter, 0, LEN_KEY_DESC_REPLAY);
 #endif
 
+#if 0  /*jinchuan 20140704, Del this block to purpose: whether go to smnt or not, it should be judged by Flash STA cfg content*/
 	/* if SMNT->Init ,	Connected->Init state,	not do reset sta cfg check*/
 	/* if next smnt connection is not use sta cfg in flash, not do reset sta cfg check */
 	/* if Dhcp fail->Init , and use flash sta cfg,	  need do reset sta cfg check*/
-	if ((pIoTMlme->UseFlashStaCfg == TRUE) &&
+	if ((pIoTMlme->ValidFlashStaCfg == TRUE) &&
 		((pIoTMlme->VerfiyInit == TRUE) ||    /*for DHCP fail->Init*/
 		 ((pIoTMlme->PreWifiState >= WIFI_STATE_SCAN) &&
 		  (pIoTMlme->PreWifiState != WIFI_STATE_CONNED)))
@@ -377,22 +392,32 @@ VOID ws_init(OUT BOOLEAN *pb_enable)
 	if(Vcount >= MAX_VALID_CHECK_COUNT)
 	{
 		/*Direct enter Smart Connection state*/
-		pIoTMlme->UseFlashStaCfg = FALSE;
+		pIoTMlme->ValidFlashStaCfg = FALSE;
 		Vcount = 0;
 	}
 	else
 	{
-		pIoTMlme->UseFlashStaCfg = load_sta_cfg();
-	}
+		pIoTMlme->ValidFlashStaCfg = load_sta_cfg();
+	}		
+#endif
+
+	pIoTMlme->ValidFlashStaCfg = load_sta_cfg();
 
 	/* The entry for customization */
 	if (IoTCustOp.IoTCustWifiSMInit != NULL)
+	{
 		IoTCustOp.IoTCustWifiSMInit();
+	}
 	
-	if (pIoTMlme->UseFlashStaCfg == TRUE)
+	if ((pIoTMlme->ValidFlashStaCfg == TRUE) &&
+		(pIoTMlme->ATSetSmnt == FALSE))
+	{
 		wifi_state_chg(WIFI_STATE_SCAN, SCAN_STA_IDLE);
-	else
+	}
+	else /*if pIoTMlme->ATSetSmnt = TRUE,  go to smart connection state*/
+	{
 		ws_goto_smnt();
+	}
 }
 
 /*========================================================================
@@ -479,7 +504,7 @@ VOID ws_connected(OUT BOOLEAN *pb_enable)
 
 /*========================================================================
 	Routine	Description:
-		store_sta_cfg
+		load_sta_cfg
 		
 	Arguments:	
 	Return Value:	
@@ -606,6 +631,6 @@ VOID setFlagVfyInit(BOOLEAN flag)
  */
 BOOLEAN CustomExtraCheckForPS(VOID)
 {
-   return TRUE;
+   return FALSE;
 }
 #endif

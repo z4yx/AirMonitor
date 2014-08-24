@@ -428,17 +428,17 @@ SECTIONS
     /********************************************************************************/
 	.xipsec0 : 
 	{             
-		KEEP(*(.xipsec0)) 
+		/*KEEP(*(.xipsec0))*/ 
 	} > FLASH_XIP_STA         
 
 	.xipsec1 :       
 	{                    
-		KEEP(*(.xipsec1))  
+		/*KEEP(*(.xipsec1))*/  
 	} > FLASH_XIP_STA     
 	
 	.xipsec2 : 
 	{             
-		KEEP(*(.xipsec2)) 
+		/*KEEP(*(.xipsec2))*/ 
 	} > FLASH_XIP_STA         
    
     /********************************************************************************/

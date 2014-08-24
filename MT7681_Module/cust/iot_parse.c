@@ -17,29 +17,34 @@
 * DESIGNER:        
 * DATE:            Jan 2013
 *
-*最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
+* SOURCE CONTROL:
 *
 * LICENSE:
 *     This source code is copyright (c) 2011 Ralink Tech. Inc.
 *     All rights reserved.
 *
-* 深圳市安信可科技 MTK7681串口模块专业生产厂家 
+* REVISION     HISTORY:
 *   V1.0.0     Jan 2012    - Initial Version V1.0
 *
 *
-* 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
+* SOURCE:
 * ISSUES:
 *    First Implementation.
-* 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
+* NOTES TO USERS:
 *
 ******************************************************************************/
 
+#if (CFG_SUPPORT_TCPIP == 0)
 #define TCPUDP_SRC_PORT		(34932)
 #define TCPUDP_DST_PORT		(8176)
-UCHAR src_addr[]={192,168,1,10};
+
+UCHAR src_addr[] ={192,168,1,10};
 UCHAR dest_addr[]={255,255,255,255};
+#endif
 
 extern IOT_ADAPTER   IoTpAd;
+extern UCHAR BCAST_ADDR[MAC_ADDR_LEN];
+
 UCHAR IoT_CmdPWD_Recv[PASSWORD_MAX_LEN] = {0xFF,0xFF,0xFF,0xFF};
 
 UINT16 preSeq = 0;
@@ -101,10 +106,8 @@ INT32 IoT_process_app_function_packet(
 
 		if(memcmp(&pPacketInfo->SessionID,  IoTpAd.ComCfg.CmdPWD, PASSWORD_MAX_LEN))
 		{
-
 			DBGPRINT(RT_DEBUG_ERROR, ("wrong iot device password\n"));
 			return 0;
-
 		}
 
 		switch (FunctionType)
@@ -114,15 +117,16 @@ INT32 IoT_process_app_function_packet(
 				GPIO_Value = GpioData->GPIO_Value;
 				if(Dataheader->Type == GPIO_INFORMATION)
 				{
-						
 					if(pPacketInfo->Sequence != preSeq)
 					{
-
 						for(i=0; i < mt7681_HardwareRresource.GPIO_Count; i++)
 						{
 							if(((mt7681_HardwareRresource.GPIO_Rresource)&((UINT_32)1<<i))==0)
 								continue;
-							
+#if ((IOT_PWM_SUPPORT == 1) && (IOT_PWM_TYPE == 2))
+							/*if this GPIO has been set as PWM, cancel PWM first*/
+							IoT_software_pwm_del(i);
+#endif							
 							if((GPIO_Value)&((UINT_32)1<<i))
 							{
 								IoT_gpio_output(i,1);
@@ -146,7 +150,7 @@ INT32 IoT_process_app_function_packet(
 				
 			case PWM_SET_REQUEST:
 				DBGPRINT(RT_DEBUG_TRACE,("PWM_SET_REQUEST\n"));
-#if (IOT_PWM_SUPPORT == 1)		
+#if (IOT_PWM_SUPPORT == 1)
 				if(Dataheader->Type == PWM_INFORMATION)
 				{
 					/*this is a sample,  customer maybe use other GPIO for PWM*/
@@ -176,10 +180,8 @@ INT32 IoT_process_app_function_packet(
 				
 				if(Dataheader->Type == UART_INFORMATION)
 				{
-
 					if(pPacketInfo->Sequence != preSeq)
 					{
-
 						if(Dataheader->Length != appLen - CP_HDR_LEN - CP_DATA_HDR_LEN)
 						{
 							Status_out->StatusCode = 1; 
@@ -187,18 +189,14 @@ INT32 IoT_process_app_function_packet(
 						else
 						{
 							Status_out->StatusCode = 0; 
-							uart_tx_length = Dataheader->Length;
+							uart_tx_length = Dataheader->Length;							
 							IoT_uart_output((CHAR *)UartData->Data, (size_t)uart_tx_length);
 						}
-
 					}
-					
 					IoT_build_app_response_header(iot_buffer, FUNCTION, UART_SET_RESPONSE, STATUS, sizeof(Status), pPacketInfo); 
-						
-					
 				}
 				
-				payload_len = (UINT16)(CP_HDR_LEN+CP_DATA_HDR_LEN+sizeof(Status));					
+				payload_len = (UINT16)(CP_HDR_LEN+CP_DATA_HDR_LEN+sizeof(Status));
 				break;
 				
 			case GPIO_GET_REQUEST:
@@ -216,7 +214,10 @@ INT32 IoT_process_app_function_packet(
 				{
 					if(!((mt7681_HardwareRresource.GPIO_Rresource)&((UINT_32)1<<i)))
 						continue;
-					
+#if ((IOT_PWM_SUPPORT == 1) && (IOT_PWM_TYPE == 2))
+					/*if this GPIO has been set as PWM, cancel PWM first*/
+					IoT_software_pwm_del(i);
+#endif
 					IoT_gpio_input((INT32)i, &gpio_input);		 /*shall change GPIO to input mode*/
 					//IoT_gpio_read((INT32)i, &gpio_read, &Polarity);  /*Only read GPIO val and mode, not change GPIO to input mode*/
 	
@@ -294,7 +295,6 @@ INT32 IoT_process_app_management_packet(
 							DataHeader* Dataheader, 
 							UINT16 ManagementType, 
 							IoTPacketInfo  *pPacketInfo)
-
 {
 
 	UCHAR iot_buffer[IOT_BUFFER_LEN]={0};
@@ -461,7 +461,6 @@ INT32 IoT_process_app_packet(
 	IoTPacketInfo  PacketInfo;
 	IoTCtrlProtocolHeader * ProtocolHeader;
 	UINT8 Subtype;
-	UCHAR BROADCAST_ADDR[MAC_ADDR_LEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	
 #if (AES_DATAPARSING_SUPPORT == 1)
 
@@ -496,8 +495,8 @@ INT32 IoT_process_app_packet(
 	}
 	
 
-	if(!MAC_ADDR_EQUAL(gCurrentAddress, ProtocolHeader->ReceiveMAC) && 
-		!MAC_ADDR_EQUAL(BROADCAST_ADDR, ProtocolHeader->ReceiveMAC))
+	if (!MAC_ADDR_EQUAL(gCurrentAddress, ProtocolHeader->ReceiveMAC) && 
+		!MAC_ADDR_EQUAL(BCAST_ADDR, ProtocolHeader->ReceiveMAC))
 	{
 		DBGPRINT(RT_DEBUG_ERROR,("ReceiveMAC error\n"));
 		return -4;
@@ -523,25 +522,17 @@ INT32 IoT_process_app_packet(
 	}
 #endif
 
-
-
 	Subtype = ProtocolHeader->SubHdr.field.SubType;
 	
-
-
 	if(ProtocolHeader->SubHdr.field.Type == FUNCTION)
 	{
-
 		IoT_process_app_function_packet(Dataheader, Subtype, &PacketInfo);
-	
 	}
-	
 	else if(ProtocolHeader->SubHdr.field.Type == MANAGEMENT)
 	{
-
 	 	IoT_process_app_management_packet(Dataheader, Subtype, &PacketInfo);
-
 	}
+	
 #if ENABLE_DATAPARSING_SEQUENCE_MGMT
 	IoT_cp_app_set_seq(sock_num, PacketInfo.Sequence);
 #else

@@ -103,6 +103,8 @@ void uip_arp_arpin(void);
    the Ethernet frame that should be transmitted. */
 void uip_arp_out(void);
 
+PUCHAR uip_get_DestMAC(uip_ipaddr_t *DestAddr);
+
 /* The uip_arp_timer() function should be called every ten seconds. It
    is responsible for flushing old entries in the ARP table. */
 void uip_arp_timer(void);

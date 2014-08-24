@@ -7,6 +7,35 @@
 #include "iot_api.h"
 #include "eeprom.h"
 
+/************************************************/
+/* Macros */
+/************************************************/
+#define ENABLE_SPI_PUB_ERASE 1
+#define ENABLE_SPI_PUB__RW	 1
+
+
+/* SPI Command Mode Index: */
+#define PUB_SPICMD_WR_BYTE			(0x00)
+#define PUB_SPICMD_WR_LASTBYTE		(0x04)
+#define PUB_SPICMD_WORD_BE			(0x08)
+#define PUB_SPICMD_LASTWORD_BE		(0x0c)
+#define PUB_SPICMD_WORD_LE			(0x10)
+#define PUB_SPICMD_LASTWORD_LE		(0x14)
+#define PUB_SPICMD_RD_BYTE			(0x18)
+#define PUB_SPICMD_RD_LASTBYTE		(0x1c)
+
+
+//Serial flash command mode:Instruction opcode(1byte) + Address(A23~A0,3bytes) + Data...
+//Instruction opcode of Serial flash spec
+#define WRSR		0x01       //write status register
+#define PP			0x02       //page program
+#define READ		0x03       //read data
+#define RDSR		0x05       //read status register
+#define WREN		0x06       //write enable
+#define BE			0x52       //block erase
+#define CE			0x60       //chip erase
+#define SE			0x20       //sector erase
+
 
 /* used for crc32 */
 #define REFLECT_DATA(X)         ((uint8) reflect((X), 8))
@@ -20,8 +49,39 @@
 
 extern IOT_ADAPTER	 IoTpAd;
 
-uint8 dump_spi_flash(UINT32 start, UINT32 end);
+/************************************************/
+/* Extern Function */
+/************************************************/
+/*=====================================
+	Routine Description:  Read/Write SPI CR
+	Arguments:Offset: SPI CR index  [0/4/8/..../0x1C]
+		          Val:     Write value to SPI CR
+	Return Value:  NONE
+======================================*/
+extern inline VOID SPI_REG8(UINT8 Offset, UINT8 Val);
 
+/*=====================================
+	Routine Description: SPI command mode read data
+	Arguments:
+	Return Value:  if Ope=0,  Return 0
+======================================*/
+extern inline UINT32 SPI_READOUT(VOID);
+
+/*=====================================
+	Routine Description: Wait the flash controller free
+	Arguments:
+	Return Value: 
+======================================*/
+extern inline VOID WAIT_OP_DONE_PUB(VOID);
+
+extern uint8 dump_spi_flash(UINT32 start, UINT32 end);
+
+
+
+
+/************************************************/
+/* Function */
+/************************************************/
 uint32 reflect(uint32 data, uint8 nBits)
 {
     UINT32 reflection = 0x00000000;
@@ -63,12 +123,203 @@ uint32 crc32(uint8 *msg, int32 len)
 }
 
 
+#if ENABLE_SPI_PUB_ERASE
+
+/*************************************************
+*spi_flash_erase_CE
+*************************************************/
+void spi_flash_erase_CE(void)
+{
+    //printf("spi_flash_erase_CE start\n");
+    UINT8 SR;
+	
+	SPI_REG8(PUB_SPICMD_WR_LASTBYTE, WREN);
+	WAIT_OP_DONE_PUB();
+	SPI_REG8(PUB_SPICMD_WR_LASTBYTE, CE);
+
+    /* Check if operation done */
+    do
+    {
+		SPI_REG8(PUB_SPICMD_WR_BYTE, RDSR);        //read status register
+		SPI_REG8(PUB_SPICMD_RD_LASTBYTE, 0x00);    //read the last byte
+		SR = (uint8)(SPI_READOUT() >> 24);            //status value
+    } while(SR&0x01);                                 //write in progress bit(whether in write status/program/erase cycle) 
+	//printf("spi_flash_erase_CE end\n");
+}
+
+/*************************************************
+*spi_flash_erase_SE
+*************************************************/
+void spi_flash_erase_SE(uint32 address)
+{
+    UINT8   SR;
+    //printf("spi_flash_erase_SE start\n");
+    
+    //send spi command:write enable
+	SPI_REG8(PUB_SPICMD_WR_LASTBYTE, WREN);
+	WAIT_OP_DONE_PUB();
+	//printf("send spi cmd\n");
+	
+	//send spi command:erase a sector
+	SPI_REG8(PUB_SPICMD_WR_BYTE, SE);
+	SPI_REG8(PUB_SPICMD_WR_BYTE, (uint8)((address>>16)&0xff));
+	SPI_REG8(PUB_SPICMD_WR_BYTE, (uint8)((address>>8)&0xff));
+	SPI_REG8(PUB_SPICMD_WR_LASTBYTE, (uint8)(address&0xff));
+	
+    /* Check if operation done */
+    do
+    {
+		SPI_REG8(PUB_SPICMD_WR_BYTE, RDSR);
+		SPI_REG8(PUB_SPICMD_RD_LASTBYTE, 0x00);
+		SR = (uint8)(SPI_READOUT() >> 24);
+    }
+    while (SR & 0x01);       //write in progress bit(whether in write status/program/erase cycle) 
+
+    //printf("spi_flash_erase_SE done\n");
+}
+
+/**********************************************
+*spi_flash_erase_BE
+**********************************************/
+void spi_flash_erase_BE(uint32 address)
+{
+	UINT8	SR;
+	//uint32	c1;
+	//uint32	counter = 0;
+	
+	//printf("spi_flash_erase_BE start\n");
+	SPI_REG8(PUB_SPICMD_WR_LASTBYTE, WREN);
+	WAIT_OP_DONE_PUB();
+	
+	//printf("send spi cmd\n");
+	SPI_REG8(PUB_SPICMD_WR_BYTE, BE);
+	SPI_REG8(PUB_SPICMD_WR_BYTE, (uint8)((address>>16)&0xff));
+	SPI_REG8(PUB_SPICMD_WR_BYTE, (uint8)((address>>8)&0xff));
+	SPI_REG8(PUB_SPICMD_WR_LASTBYTE, (uint8)(address&0xff));
+
+	/* Check if operation done */
+	do
+	{
+		SPI_REG8(PUB_SPICMD_WR_BYTE, RDSR);
+		SPI_REG8(PUB_SPICMD_RD_LASTBYTE, 0x00);
+		SR = (uint8)(SPI_READOUT() >> 24);
+	}
+	while (SR & 0x01);
+
+	//printf("spi_flash_erase_BE done\n");
+}
+#endif
+
+
+#if ENABLE_SPI_PUB__RW
+/**********************************************
+* spi_flash_read_m2()  ,   
+* read the flash data ,just same as spi_flash_read()
+* this function can be extended to support other flash cmds
+**********************************************/
+int32 spi_flash_read_m2(uint32 addr, uint8 *data, uint16 len)
+{
+	UINT16 idx;
+
+	WAIT_OP_DONE_PUB();
+	
+	//send read data command
+	SPI_REG8(PUB_SPICMD_WR_BYTE, READ);
+	SPI_REG8(PUB_SPICMD_WR_BYTE, ((addr>>16)&0xFF));
+	SPI_REG8(PUB_SPICMD_WR_BYTE, ((addr>>8)&0xFF));
+	SPI_REG8(PUB_SPICMD_WR_BYTE, ((addr>>0)&0xFF));
+	
+    for(idx=0; idx<len; idx++)
+    {
+		if ((idx+1) == len)
+		{
+			SPI_REG8(PUB_SPICMD_RD_LASTBYTE, 0x00);  //read the last byte
+		}
+		else
+		{
+			SPI_REG8(PUB_SPICMD_RD_BYTE, 0x00);  //read the last byte
+		}
+	 	data[idx] = (uint8)(SPI_READOUT() >> 24);
+    }
+	
+    return 0;
+}
+
+
+/**********************************************
+*spi_flash_page_write
+**********************************************/
+static void spi_flash_page_write(uint32 addr, uint8 *data, uint16 len)
+{
+    //send write enable command
+	SPI_REG8(PUB_SPICMD_WR_LASTBYTE, WREN);
+    WAIT_OP_DONE_PUB();
+	
+    //send page program command
+	SPI_REG8(PUB_SPICMD_WR_BYTE, PP);
+	SPI_REG8(PUB_SPICMD_WR_BYTE, ((addr>>16)&0xFF));
+	SPI_REG8(PUB_SPICMD_WR_BYTE, ((addr>>8)&0xFF));
+	SPI_REG8(PUB_SPICMD_WR_BYTE, ((addr>>0)&0xFF));
+	
+    //write at most 256 bytes(that is one page) one time based on serial flash spec
+    len = (len>256)? 256: len;
+    for( ; len>0; len--)
+    {
+		if (len == 1)
+		{
+			SPI_REG8(PUB_SPICMD_WR_LASTBYTE, *data++);  //write last byte
+		}
+		else
+		{
+			SPI_REG8(PUB_SPICMD_WR_BYTE, *data++);  //write 1 byte
+		}
+    }
+}
+
+
+/**********************************************
+*spi_flash_write_func
+**********************************************/
+int32 spi_flash_write_func(uint32 addr, uint8 *data, uint16 len)
+{
+	UINT8 SR;
+	printf("spi_flash_write_func_pub\n");
+
+	for( ; len>=256; len-=256)
+	{
+		spi_flash_page_write(addr, data, 256);
+		addr += 256;
+		data += 256;
+
+		/* Check if operation done */
+		do
+		{
+			SPI_REG8(PUB_SPICMD_WR_BYTE, RDSR);
+			SPI_REG8(PUB_SPICMD_RD_LASTBYTE, 0x00);
+			SR = (uint8)(SPI_READOUT() >> 24);
+		} while(SR&0x01);
+	}
+	
+	if (len > 0)
+	{
+		spi_flash_page_write(addr, data, len);
+	}
+	return 0;
+}
+#endif
+
+/**********************************************
+*spi_flash_update_fw_done
+**********************************************/
 uint8 spi_flash_update_fw_done(uint8 type)
 {
 	Printf_High("\nUpdate Region[%d] Successful, please Reboot !!\n", type);
 	return 0;
 }
 
+/**********************************************
+*spi_flash_update_fw
+**********************************************/
 uint8 spi_flash_update_fw(uint8 type, uint32 offset, uint8 *pdata, uint16 len)
 {
 	uint16 maxSector = 0;       /*stored the max sector number  for the Update FW region in Flash*/
@@ -147,6 +398,9 @@ uint8 spi_flash_update_fw(uint8 type, uint32 offset, uint8 *pdata, uint16 len)
 	return 0;
 }
 
+/**********************************************
+*spi_flash_write
+**********************************************/
 int32 spi_flash_write(uint32 addr, uint8 *data, uint16 len)
 {
 	UINT32  sec_start, sec_end;				/*indicate sector range*/
@@ -229,6 +483,10 @@ int32 spi_flash_write(uint32 addr, uint8 *data, uint16 len)
 
 }
 
+
+/**********************************************
+*dump_spi_flash_fw
+**********************************************/
 /*TYPE=1  dump stationFW region*/
 /*TYPE=2  dump UpgradeFW region*/
 uint8 dump_spi_flash_fw(UINT8 TYPE)
@@ -275,6 +533,9 @@ uint8 dump_spi_flash_fw(UINT8 TYPE)
 
 
 
+/**********************************************
+*dump_spi_flash
+**********************************************/
 uint8 dump_spi_flash(UINT32 start, UINT32 end)
 {
 	uint32 rid, i, rest;

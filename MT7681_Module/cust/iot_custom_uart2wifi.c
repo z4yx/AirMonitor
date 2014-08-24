@@ -14,47 +14,47 @@
 * DESIGNER:        
 * DATE:            Jan 2013
 *
-*最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
+* SOURCE CONTROL:
 *
 * LICENSE:
 *     This source code is copyright (c) 2011 Ralink Tech. Inc.
 *     All rights reserved.
 *
-* 深圳市安信可科技 MTK7681串口模块专业生产厂家 
+* REVISION     HISTORY:
 *   V1.0.0     Jan 2012    - Initial Version V1.0
 *
 *
-* 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
+* SOURCE:
 * ISSUES:
 *    First Implementation.
-* 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
+* NOTES TO USERS:
 *
 ******************************************************************************/
 #if (UARTRX_TO_AIR_LEVEL == 2)
+#define  INDICATE_GPIO  2
 
-int iot_uart_rx_mode = UARTRX_ATCMD_MODE;
+TIMER_T       uart2wifi_timer;
+UINT_32       uart2wifi_interval          =   UART2WIFI_TIMER_INTERVAL;
+UINT_32       uart2wifi_triger_count      =   UART2WIFI_LEN_THRESHOLD;
 
-//extern BUFFER_INFO uart_rb_info;
-#if (UART_INTERRUPT == 1)
-#define  UARTRX_TO_AIR_THRESHOLD   UARTRX_RING_LEN/2
-#else
-#define  UARTRX_TO_AIR_THRESHOLD   AT_CMD_MAX_LEN/2
-#endif
+//UartRxMode    iot_uart_rx_mode            =   UARTRX_ATCMD_MODE;
+UartRxMode    iot_uart_rx_mode            =   UARTRX_PUREDATA_MODE;
 
-TIMER_T UartSendTimer;
-UINT_32 uart2wifi_interval = 300; //ms
-UINT_32  uart2wifi_triger_count = UARTRX_TO_AIR_THRESHOLD;
 
-INT32 previous_input = -1;
-#define INDICATE_GPIO 2
+INT32         previous_input              = -1;
+
 
 VOID IoT_Cust_uart2wifi_init(UINT_32 interval, UINT_32 triger_count)
 {
-	uart2wifi_interval = interval;
+	uart2wifi_interval     = interval;
 	uart2wifi_triger_count = triger_count;
+    
 	if(uart2wifi_triger_count > UARTRX_TO_AIR_THRESHOLD)
-		uart2wifi_triger_count = UARTRX_TO_AIR_THRESHOLD;
-	cnmTimerInitTimer(&UartSendTimer,  IoT_Cust_uart2wifi_timer_action, 0, 0);
+    {
+        uart2wifi_triger_count = UARTRX_TO_AIR_THRESHOLD;
+    }   
+		
+	cnmTimerInitTimer(&uart2wifi_timer,  IoT_Cust_uart2wifi_timer_action, 0, 0);
 }
 
 #if (UART_INTERRUPT == 1)
@@ -78,12 +78,12 @@ VOID IoT_Cust_uart2wifi_set_mode(UartRxMode mode)
 	if(mode == UARTRX_PUREDATA_MODE)
 	{   
         Printf_High("UARTRX_PUREDATA_MODE\n");
-   		cnmTimerStartTimer(&UartSendTimer, uart2wifi_interval);
+   		cnmTimerStartTimer(&uart2wifi_timer, uart2wifi_interval);
 	}
 	else if(mode == UARTRX_ATCMD_MODE)
 	{
         Printf_High("UARTRX_ATCMD_MODE\n");
-		cnmTimerStopTimer(&UartSendTimer);
+		cnmTimerStopTimer(&uart2wifi_timer);
 	}
 	return;
 }
@@ -112,8 +112,10 @@ VOID IoT_Cust_uart2wifi_timer_action(UINT_32 param1, UINT_32 param2)
         for(i = 0;i < rx_len;i++)
         {
             Buf_Pop(rx_ring, pCmdBuf[i]);
-        }     
+        }    
+        
         IoT_Cust_uart2wifi_data_handler(pCmdBuf, rx_len);
+        
         free(pCmdBuf);
         
 #else
@@ -137,7 +139,7 @@ VOID IoT_Cust_uart2wifi_timer_action(UINT_32 param1, UINT_32 param2)
          IoT_Cust_uart2wifi_data_handler(pCmdBuf, rx_len);
          free(pCmdBuf);
 #endif
-	cnmTimerStartTimer(&UartSendTimer, uart2wifi_interval);
+	cnmTimerStartTimer(&uart2wifi_timer, uart2wifi_interval);
 
 }
 

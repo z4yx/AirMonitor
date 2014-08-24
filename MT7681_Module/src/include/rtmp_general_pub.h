@@ -249,6 +249,84 @@ typedef struct _CIPHER_KEY {
 } CIPHER_KEY, *PCIPHER_KEY;
 
 
+
+/***************************************************************************
+  *	Packet Header definition
+  **************************************************************************/
+#define SNAP_LENGTH             6
+#define UDP_HEADER_LENGTH       8
+#define IP_PROTO_TCP            6
+#define IP_PROTO_UDP            17
+#define IP_PROTO_ICMPv6         58
+#define UDP_DPORT_FIELD_OFFSET  2
+#define UDP_LENGTH_FIELD_OFFSET 4
+#define TCP_SPORT_FIELD_OFFSET  0
+#define TCP_DPORT_FIELD_OFFSET  2
+#define TCP_FLAG_FIELD_OFFSET   13
+#define MAGIC_FRAME_LENGTH      102
+#define UDP_MAGIC_FRAME_LENGTH  110
+#define MAGIC_FRAME_MAC_TIMES   16
+#define ETHER_TYPE_ARP          0x0806
+#define ETHER_TYPE_IPv4         0x0800
+#define ETHER_TYPE_IPv6         0x86DD
+#define LENGTH_802_11           24
+#define LENGTH_802_3            14
+#define LENGTH_802_3_TYPE       2
+#define LENGTH_802_1_H          8
+#define LENGTH_EAPOL_H          4
+
+#define PKT_TYPE_NONE           0
+#define PKT_TYPE_UCAST          1
+#define PKT_TYPE_MCAST          2
+#define PKT_TYPE_BCAST          3
+
+#define ARP_OPCODE_OFFSET           6
+#define ARP_SA_OFFSET               8
+#define ARP_SPA_OFFSET              14
+#define ARP_DA_OFFSET               18
+#define ARP_TPA_OFFSET              24
+#define ARP_MSG_SIZE                28
+
+#define IPV4_VER_IHL_OFFSET         0
+#define IPV4_LENGTH_OFFSET			2
+#define IPV4_PROTO_OFFSET           9
+#define IPV4_SRCIP_OFFSET           12
+#define IPV4_DSTIP_OFFSET           16
+#define IPV4_HEADER_LEN_MAX         24
+#define IPV6_LENGTH_OFFSET			4
+#define IPV6_PROTO_OFFSET           6
+#define IPV4_HEADER_SIZE  			20
+#define IPV6_HEADER_SIZE  			40
+#define IPV6_HEADER_EXT_SIZE		24
+#define IPV6_ADDR_LEN               16
+
+/* IPv6 next header define */
+#define NEXTHDR_HOP	        0	/* Hop-by-hop option header. */
+#define NEXTHDR_TCP		    6	/* TCP segment. */
+#define NEXTHDR_UDP		    17	/* UDP message. */
+#define NEXTHDR_IPV6		41	/* IPv6 in IPv6 */
+#define NEXTHDR_ROUTING		43	/* Routing header. */
+#define NEXTHDR_FRAGMENT	44	/* Fragmentation/reassembly header. */
+#define NEXTHDR_ESP		    50	/* Encapsulating security payload. */
+#define NEXTHDR_AUTH		51	/* Authentication header. */
+#define NEXTHDR_ICMP		58	/* ICMP for IPv6. */
+#define NEXTHDR_NONE		59	/* No next header */
+#define NEXTHDR_DEST		60	/* Destination options header. */
+#define NEXTHDR_MOBILITY	135	/* Mobility header. */
+
+/* ICMPv6 type */
+#define ICMPV6_NEIGHBOR_SOLICITATION     135
+#define ICMPV6_NEIGHBOR_ADVERTISEMENT    136
+
+/*ICMPv6 flag define */
+#define ICMPV6_FLAG_SOLICITIED           0x40000000
+
+/* TCP flag define */
+#define TCP_FLAG_SYN                     0x02
+
+
+
+
 /***************************************************************************
   *	Tx Path software control block related data structures
   **************************************************************************/
@@ -407,6 +485,96 @@ typedef struct _RX_BLK_
 	USHORT				Flags;
 	UCHAR				UserPriority;	// for calculate TKIP MIC using
 } RX_BLK;
+
+#define NdisMoveMemory(Destination, Source, Length) memmove(Destination, Source, Length)
+//#define NdisCopyMemory(Destination, Source, Length) memcpy(Destination, Source, Length)
+#define NdisZeroMemory(Destination, Length)         memset(Destination, 0, Length)
+#define NdisFillMemory(Destination, Length, Fill)   memset(Destination, Fill, Length)
+#define NdisEqualMemory(Source1, Source2, Length)   (!memcmp(Source1, Source2, Length))
+
+
+#define	CONV_ARRARY_TO_UINT16(_V)	((_V[0]<<8) | (_V[1]))
+#define	SET_UINT16_TO_ARRARY(_V, _LEN)		\
+{											\
+	_V[0] = ((UINT16)_LEN) >> 8;			\
+	_V[1] = ((UINT16)_LEN & 0xFF);					\
+}
+
+#define	INC_UINT16_TO_ARRARY(_V, _LEN)			\
+{												\
+	UINT16	var_len;							\
+												\
+	var_len = (_V[0]<<8) | (_V[1]);				\
+	var_len += _LEN;							\
+												\
+	_V[0] = (var_len & 0xFF00) >> 8;			\
+	_V[1] = (var_len & 0xFF);					\
+}
+#define MAKE_802_3_HEADER(_p, _pMac1, _pMac2, _pType)                   \
+{                                                                       \
+    NdisMoveMemory(_p, _pMac1, MAC_ADDR_LEN);                           \
+    NdisMoveMemory((_p + MAC_ADDR_LEN), _pMac2, MAC_ADDR_LEN);          \
+    NdisMoveMemory((_p + MAC_ADDR_LEN * 2), _pType, LENGTH_802_3_TYPE); \
+}
+
+/* Endian byte swapping codes */
+#define SWAP16(x) \
+    ((UINT16)( \
+    (((UINT16)(x) & (UINT16) 0x00ffU) << 8) | \
+    (((UINT16)(x) & (UINT16) 0xff00U) >> 8) ))
+
+#define SWAP32(x) \
+    ((UINT32)( \
+    (((UINT32)(x) & (UINT32) 0x000000ffUL) << 24) | \
+    (((UINT32)(x) & (UINT32) 0x0000ff00UL) <<  8) | \
+    (((UINT32)(x) & (UINT32) 0x00ff0000UL) >>  8) | \
+    (((UINT32)(x) & (UINT32) 0xff000000UL) >> 24) ))
+
+#define SWAP64(x) \
+    ((UINT64)( \
+    (UINT64)(((UINT64)(x) & (UINT64) 0x00000000000000ffULL) << 56) | \
+    (UINT64)(((UINT64)(x) & (UINT64) 0x000000000000ff00ULL) << 40) | \
+    (UINT64)(((UINT64)(x) & (UINT64) 0x0000000000ff0000ULL) << 24) | \
+    (UINT64)(((UINT64)(x) & (UINT64) 0x00000000ff000000ULL) <<  8) | \
+    (UINT64)(((UINT64)(x) & (UINT64) 0x000000ff00000000ULL) >>  8) | \
+    (UINT64)(((UINT64)(x) & (UINT64) 0x0000ff0000000000ULL) >> 24) | \
+    (UINT64)(((UINT64)(x) & (UINT64) 0x00ff000000000000ULL) >> 40) | \
+    (UINT64)(((UINT64)(x) & (UINT64) 0xff00000000000000ULL) >> 56) ))
+
+#define ROUND_UP(__x, __y) \
+	(((ULONG)((__x)+((__y)-1))) & ((ULONG)~((__y)-1)))
+
+#ifdef RT_BIG_ENDIAN
+
+#define cpu2le64(x) SWAP64((x))
+#define le2cpu64(x) SWAP64((x))
+#define cpu2le32(x) SWAP32((x))
+#define le2cpu32(x) SWAP32((x))
+#define cpu2le16(x) SWAP16((x))
+#define le2cpu16(x) SWAP16((x))
+#define cpu2be64(x) ((UINT64)(x))
+#define be2cpu64(x) ((UINT64)(x))
+#define cpu2be32(x) ((UINT32)(x))
+#define be2cpu32(x) ((UINT32)(x))
+#define cpu2be16(x) ((UINT16)(x))
+#define be2cpu16(x) ((UINT16)(x))
+    
+#else /* Little_Endian */
+    
+#define cpu2le64(x) ((UINT64)(x))
+#define le2cpu64(x) ((UINT64)(x))
+#define cpu2le32(x) ((UINT32)(x))
+#define le2cpu32(x) ((UINT32)(x))
+#define cpu2le16(x) ((UINT16)(x))
+#define le2cpu16(x) ((UINT16)(x))
+#define cpu2be64(x) SWAP64((x))
+#define be2cpu64(x) SWAP64((x))
+#define cpu2be32(x) SWAP32((x))
+#define be2cpu32(x) SWAP32((x))
+#define cpu2be16(x) SWAP16((x))
+#define be2cpu16(x) SWAP16((x))
+    
+#endif /* RT_BIG_ENDIAN */
 
 #endif /* __RTMP_GENERAL_PUB_H__ */ 
 

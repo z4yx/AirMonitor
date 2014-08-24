@@ -42,6 +42,7 @@
 extern BOOLEAN gSmnted;   
 
 extern IOT_CUST_OP IoTCustOp;
+extern MLME_STRUCT *pIoTMlme;
 /*---------------------------------------------------------------------------*/
 
 static struct dhcpc_state s;
@@ -82,6 +83,7 @@ struct dhcp_msg {
 #define DHCP_OPTION_SUBNET_MASK   1
 #define DHCP_OPTION_ROUTER        3
 #define DHCP_OPTION_DNS_SERVER    6
+#define DHCP_OPTION_HOST_NAME   12
 #define DHCP_OPTION_REQ_IPADDR   50
 #define DHCP_OPTION_LEASE_TIME   51
 #define DHCP_OPTION_MSG_TYPE     53
@@ -91,6 +93,7 @@ struct dhcp_msg {
 
 static const u8_t xid[4] = {0xad, 0xde, 0x12, 0x23};
 static const u8_t magic_cookie[4] = {99, 130, 83, 99};
+static UCHAR hostname[8] = DEFAULT_DHCP_HOST_NAME;
 /*---------------------------------------------------------------------------*/
 static u8_t *
 add_msg_type(u8_t *optptr, u8_t type) XIP_ATTRIBUTE(".xipsec1");
@@ -141,6 +144,21 @@ add_req_options(u8_t *optptr)
   *optptr++ = DHCP_OPTION_DNS_SERVER;
   return optptr;
 }
+/*---------------------------------------------------------------------------*/
+static u8_t *
+add_other_options(u8_t *optptr, u8_t code, PCHAR data, u8_t len) XIP_ATTRIBUTE(".xipsec1");
+
+static u8_t *
+add_other_options(u8_t *optptr, u8_t code, PCHAR data, u8_t len)
+{
+  *optptr++ = code;
+  *optptr++ = len;
+  memcpy(optptr, data, len);
+  optptr += len;
+
+  return optptr;
+}
+
 /*---------------------------------------------------------------------------*/
 static u8_t *
 add_end(u8_t *optptr) XIP_ATTRIBUTE(".xipsec1");
@@ -194,6 +212,7 @@ send_discover(void)
 
   end = add_msg_type(&m->options[4], DHCPDISCOVER);
   end = add_req_options(end);
+  end = add_other_options(end, DHCP_OPTION_HOST_NAME, hostname, strlen(hostname));
   end = add_end(end);
 
   uip_send(uip_appdata, end - (u8_t *)uip_appdata);
@@ -213,6 +232,7 @@ send_request(void)
   end = add_msg_type(&m->options[4], DHCPREQUEST);
   end = add_server_id(end);
   end = add_req_ipaddr(end);
+  end = add_other_options(end, DHCP_OPTION_HOST_NAME, hostname, strlen(hostname));
   end = add_end(end);
   
   uip_send(uip_appdata, end - (u8_t *)uip_appdata);
@@ -423,7 +443,10 @@ VOID ws_got_ip(VOID)
 		store_sta_cfg();
 		gSmnted = FALSE;
 	}
-
+	
+	/*set to default value,  whether go to smnt or not, it should be judged by Flash STA cfg content*/
+	pIoTMlme->ATSetSmnt = FALSE;
+	
 	if (IoTCustOp.IoTCustWifiSMConnect != NULL)
 		IoTCustOp.IoTCustWifiSMConnect();
 #endif

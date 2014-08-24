@@ -43,8 +43,6 @@
  * $Id: webclient.h,v 1.2 2006/06/11 21:46:37 adam Exp $
  *
  */
-#if 1
-
 #ifndef __WEBCLIENT_H__
 #define __WEBCLIENT_H__
 
@@ -70,6 +68,10 @@ struct webclient_state {
   u16_t httpheaderlineptr;
 
   char mimetype[32];
+
+  const char * method;
+  const char * body;
+  char content_length[32];
 };
 
 //typedef struct webclient_state uip_tcp_appstate_t;//Jody
@@ -91,6 +93,8 @@ struct webclient_state {
  * \param len The length of the data that has been received.
  */
 void webclient_datahandler(char *data, u16_t len);
+
+void webclient_statehandler(u16_t code);
 
 /**
  * Callback function that is called from the webclient code when the
@@ -172,7 +176,7 @@ void webclient_init(void);
  *
  * \retval 1 if the connection was initiated.
  */
-unsigned char webclient_get(char *host, u16_t port, char *file) XIP_ATTRIBUTE(".xipsec1");
+unsigned char webclient_get(char *host, u16_t port, char *file, const char *post_body);
 
 /**
  * Close the currently open HTTP connection.
@@ -224,10 +228,8 @@ char *webclient_hostname(void);
  */
 unsigned short webclient_port(void);
 
-void newdata(void);
-void senddata(void);
 
 
 #endif /* __WEBCLIENT_H__ */
-#endif
+
 /** @} */

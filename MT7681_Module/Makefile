@@ -206,7 +206,6 @@ clean :
 mkdir :
 	@for d in $(REQ_DIRS);			\
 	 do								\
-#	 [[ -d $$d ]] || $(MKDIR) $$d;	\
 	 $(MKDIR) $$d; \
 	 done
 

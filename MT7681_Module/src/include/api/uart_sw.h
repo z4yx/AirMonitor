@@ -26,6 +26,7 @@
 
 #include "bmd.h"
 #include "iot_api.h"
+#include "xip_ovly.h"
 
 #define  MAX_UART_PORT_NUM       1
 
@@ -102,42 +103,7 @@ typedef struct
 
 
 /*TY adds these to expand flexibility 2004/10/15*/
-typedef void (*UART_TX_FUNC)(UART_PORT port);
-typedef void (*UART_RX_FUNC)(UART_PORT port);
-typedef void (*UART_RX_DMA_FUNC)(UART_PORT port);
 
-typedef struct
-{
-      UART_PORT                      port_no;
-      kal_bool                       initialized;
-      //owner_id_enum                    ownerid;
-      //owner_id_enum                    UART_id;
-      kal_bool                       breakDet;
-      kal_bool                       EscFound;
-      UARTDCBStruct                  DCB;
-      UART_RingBufferStruct          RingBuffers;
-      UART_ESCDetectStruct           ESCDet;
-      BUFFER_INFO                    Tx_Buffer_ISR; /* receive buffer */
-      BUFFER_INFO                    Rx_Buffer;  /* receive buffer */
-      BUFFER_INFO                    Tx_Buffer;  /* transmit buffer */
-      //kal_hisrid                     hisr;
-      kal_uint32                     hisr;
-      IO_level                       DSR;
-      /*detect Escape*/
-      kal_uint8                      handle;    /*GPT handle*/
-      kal_uint8                      EscCount;
-      kal_uint8                      Rec_state; /**/
-      UART_SLEEP_ON_TX               sleep_on_tx;
-      kal_bool               		EnableTX;
-      /*tx, rx dma call back function*/
-      UART_TX_FUNC                  tx_cb;
-      UART_RX_FUNC                  rx_cb;
-      UART_RX_DMA_FUNC              rx_dma_cb;
-      //#ifdef __DMA_UART_VIRTUAL_FIFO__
-      kal_uint8 							Rx_DMA_Ch;
-	  kal_uint8 							Tx_DMA_Ch;     
-      //#endif
-} UARTStruct;
 
 // for uart dispatch table
 typedef enum
@@ -146,28 +112,6 @@ typedef enum
 	IRDA_TYPE,
 	USB_TYPE
 }UartType_enum;
-
-typedef struct _uartdriver
-{
-	kal_bool (*Open)(UART_PORT port);
-	void (*Close)(UART_PORT port);
-    kal_uint16 (*GetBytes)(UART_PORT port, volatile kal_uint8 *Buffaddr, volatile kal_uint16 Length);
-    kal_uint16 (*PutBytes)(UART_PORT port, volatile kal_uint8 *Buffaddr, volatile kal_uint16 Length);
-	kal_uint16 (*GetRxAvail)(UART_PORT port);
-	void (*Purge)(UART_PORT port, UART_buffer dir);
-	void (*SetDCBConfig)(UART_PORT port, UARTDCBStruct *UART_Config);
-	void (*UART_Register_TX_cb)(UART_PORT port, UART_TX_FUNC func);
-	void (*UART_Register_RX_cb)(UART_PORT port, UART_RX_FUNC func);
-	kal_bool (*GetUARTByte)(UART_PORT port, kal_uint8 *data);
-	void (*PutUARTBytes)(UART_PORT port, volatile kal_uint8 *data, volatile kal_uint16 len);
-}UartDriver_strcut;
-
-typedef struct _uarthandle
-{
-	UartType_enum type;
-	UartDriver_strcut* drv;
-	void* dev;
-}UartHandle_struct;
 
 
 
@@ -186,40 +130,39 @@ typedef struct {
    const UART_rings_struct * (*UART_Get_Data)(void);
 }UART_customize_function_struct;
 
-
-
 /*Function Declaration*/
-extern void UART_Init(void);
-extern UartDriver_strcut UartDriver;
-extern kal_bool UART_GetUARTByte(UART_PORT port, kal_uint8 *data);
-extern void PutUARTByte(UART_PORT port, kal_uint8 data);
-extern void UART_SetBaudRate(UART_PORT port, UART_baudrate baud_rate);
-extern void U_SetDCBConfig(UART_PORT port, UARTDCBStruct *UART_Config);
 
-extern void UART_SetDCBConfig(UART_PORT port, UARTDCBStruct *UART_Config);
-extern void UART_loopback(UART_PORT port);
-extern void UART_HWInit(UART_PORT port);
-extern kal_bool UART_Open(UART_PORT port);
-extern void UART_Close(UART_PORT port);
-//extern void UART_ReadHWStatus(UART_PORT port, IO_level *SDSR, IO_level *SCTS);
-extern void UART_Purge(UART_PORT port, UART_buffer dir);
-extern void UART_Register_RX_cb(UART_PORT port, UART_RX_FUNC func);
-extern void UART_Register_TX_cb(UART_PORT port, UART_TX_FUNC func);
-extern void UART_PutUARTBytes_Poll(UART_PORT port, volatile kal_uint8 *data, volatile kal_uint16 len);
-extern kal_uint16 UART_GetBytes(UART_PORT port, volatile kal_uint8 *Buffaddr, volatile kal_uint16 Length);
-extern kal_uint16 UART_PutBytes(UART_PORT port, volatile kal_uint8 *Buffaddr, volatile kal_uint16 Length);
-extern kal_uint16 UART_GetBytesAvail(UART_PORT port);
-extern void UART1_LISR(void);
-extern void UART_enbale_RX(UART_PORT port, kal_bool enable);
-extern void UART_Tx_Cb(UART_PORT port);
-extern void UART_Rx_Cb(UART_PORT port);
+/*
+ * UART tx&rx interrupt enable/disable
+ */
+void UART_DisableRX(void);
+void UART_EnableRX(void);
+void UART_DisableTX(void);
+void UART_EnableTX(void);
 
+void UART_Init(void) XIP_ATTRIBUTE(".xipsec0");
 
-
-// for Uart Dispatch
-extern void UART_Register(UART_PORT port, UartType_enum type, UartDriver_strcut* drv);
 /*UART customize*/
-extern void uart_customize_init(void);
+void uart_customize_init(void) XIP_ATTRIBUTE(".xipsec0");
+void UART_Configure_From_Flash(void) XIP_ATTRIBUTE(".xipsec0");
+
+void UART_HWInit(void)  XIP_ATTRIBUTE(".xipsec0");
+
+void UART_Close(void) XIP_ATTRIBUTE(".xipsec0");
+void UART_SetBaudRate(UART_baudrate baudrate) XIP_ATTRIBUTE(".xipsec0");
+void UART_SetDCBConfig(UARTDCBStruct *UART_Config) XIP_ATTRIBUTE(".xipsec0");
+void UART_PutUARTByte(volatile kal_uint8 data);
+
+
+#if (UART_INTERRUPT == 1)
+void UART_Register_TX_cb(UART_TX_FUNC func) XIP_ATTRIBUTE(".xipsec0");
+void UART_Register_RX_cb(UART_RX_FUNC func) XIP_ATTRIBUTE(".xipsec0");
+void UART_LISR(void);
+kal_bool UART_Open(void) XIP_ATTRIBUTE(".xipsec0");
+kal_uint16 _UART_GetByte(volatile kal_uint8 *Byte);
+kal_uint16 UART_PutBytes(volatile kal_uint8 *Buffaddr, volatile kal_uint16 Length);
+#endif
+
 #endif   /*UART_SW_H*/
 
 

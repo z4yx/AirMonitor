@@ -89,6 +89,11 @@ VOID wifi_rx_proc(VOID)
 	while (pRxPktQueue->Amount > 0)
 	{
 		pBufDesc = apiQU_Dequeue(pRxPktQueue);
+		if(pBufDesc ==NULL)
+		{
+			DBGPRINT(RT_DEBUG_ERROR,("=>%s DeQ fail\n",__FUNCTION__));
+			return;
+		}
 
 		if (pBufDesc->SrcPort == 1) // from WIFI
 		{
@@ -135,7 +140,7 @@ wifiTASK_LowPrioTask (VOID)
 	/*Do Period calibration*/
 	CaliPeriodExec();
 
-#if (ATCMD_RECOVERY_SUPPORT==1)
+#if ((ATCMD_RECOVERY_SUPPORT==1) && (ATCMD_SLT_SUPPORT!=1))
 	if ((RecCnt++ > gRecoveryModeTime)
 #if (ATCMD_ATE_SUPPORT == 1)  /*if both Recovey and Cali mode are enabled, need aslo detect Calib Command before reboot*/
 		&& (bCaliInited == FALSE)
@@ -165,12 +170,12 @@ wifiTASK_LowPrioTask (VOID)
 	pIoTMlme->DataEnable = 1;
 	wifi_rx_proc();
 	
-	if (gATEInfo.bATEMode != ATE_MODE_OFF)
+	if (gCaliEnabled == TRUE)
 	{
 		ATEPeriodicExec();
 	}
-	else if (gCaliEnabled == TRUE)   /*only go wifi state machine while Calibration On, to initial MAC addres and so on*/
-#endif
+	
+#else
 	{
 	 #ifdef CONFIG_SOFTAP 
 		 if (g_SoftAPStartFlag == 0)
@@ -186,7 +191,8 @@ wifiTASK_LowPrioTask (VOID)
 	 	
 		wifi_state_machine();
 	}
-	
+#endif
+
 	/*  run cutsomer sub task */
 	if (IoTCustOp.IoTCustSubTask1 != NULL)
 		IoTCustOp.IoTCustSubTask1();
@@ -208,6 +214,13 @@ wifiTASK_LowPrioTask (VOID)
 
 	if(GetFceIntStat() == 0)
 		sysTASK_AssertSignal(SYS_SIG_WIFI_IDLE_REQ);
+
+/*
+ * No anything,go to sleep
+ */
+#if (MT7681_POWER_SAVING == 1)
+    STAPowerSaving();
+#endif	
 
 }
 
@@ -584,3 +597,15 @@ VOID setFlagVfyInit(BOOLEAN flag)
 	return;
 }
 
+#if (MT7681_POWER_SAVING == 1)
+/*  
+ *  Interface which is MAYBE implemented by custom if custom need some extra power saving check 
+ *  
+ *  TRUE:  extra power saving check result:Allow enter sleep
+ *  FLASE: extra power saving check result:NoT allow enter sleep
+ */
+BOOLEAN CustomExtraCheckForPS(VOID)
+{
+   return TRUE;
+}
+#endif

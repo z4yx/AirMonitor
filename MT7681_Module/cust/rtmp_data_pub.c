@@ -125,6 +125,19 @@ VOID STAHandleRxDataFrame(
 				break;
 			}
 #endif
+
+/*
+ * 2014/05/23,terrence,MT7681 STA power saving mode
+ * here,we check the received UC/BMC packet which parepared for power saving
+ */
+#if (MT7681_POWER_SAVING == 1)
+           if (pIoTMlme->CurrentWifiState == WIFI_STATE_CONNED)
+           {
+               STACheckRxDataForPS(pRxBlk);
+           }
+#endif
+
+
 #if CFG_SUPPORT_TCPIP
 			pRxBlk->pData    -= 6;
 			memcpy(pRxBlk->pData, pRxBlk->pHeader->Addr3, 6);
@@ -147,7 +160,7 @@ VOID STAHandleRxDataFrame(
 					IoT_process_app_packet(rawpacket, rawpacketlength);
 				}
 	   	   	}
-#endif
+#endif       
 	   	    break;
 	   default:
 	   	    break;
@@ -213,11 +226,15 @@ VOID STAHandleRxMgmtFrame(
 			if (pRxBlk->pRxINFO->U2M)
 			{
 				if (pRxBlk->pHeader->FC.SubType == SUBTYPE_DEAUTH)
-				{
-					wifi_state_chg(WIFI_STATE_INIT, 0);	 //PeerDeauthAction();
+				{   
+				    //keep awake
+				    //Printf_High("PeerDeauthAction2\n");
+					wifi_state_chg(WIFI_STATE_INIT, 0);	
 				}
 				if (pRxBlk->pHeader->FC.SubType == SUBTYPE_DISASSOC)
-				{
+				{   
+				    //keep awake
+				    //Printf_High("PeerDISASSOCAction2\n");
 					PeerDisassocAction(pRxBlk, 
 								pRxBlk->pData,
 								pRxBlk->DataSize, 
@@ -225,12 +242,20 @@ VOID STAHandleRxMgmtFrame(
 				}
 			}
 			
-			if (pRxBlk->pRxINFO->MyBss){
-				if(pRxBlk->pHeader->FC.SubType == SUBTYPE_BEACON){
-					//DBGPRINT(RT_DEBUG_INFO, ("BCN FR: %02x:%02x:%02x:%02x:%02x:%02x \n",
-					//							PRINT_MAC(pRxBlk->pHeader->Addr3)));
-					RestartBCNTimer();
-				}
+			if (pRxBlk->pRxINFO->MyBss)
+            {
+				if(pRxBlk->pHeader->FC.SubType == SUBTYPE_BEACON)
+                {
+                     //Printf_High("beacon received,time:%d\n",kal_get_systime());
+                     RestartBCNTimer();
+/*
+ * 2014/05/23,terrence,MT7681 STA power saving mode
+ * here,we check the received beacon packet which parepared for power saving
+ */
+#if (MT7681_POWER_SAVING == 1) 
+                     STACheckRxBeaconForPS(pRxBlk);
+#endif	                          
+				 }
 			}
 			break;
 
@@ -240,6 +265,7 @@ VOID STAHandleRxMgmtFrame(
 #endif
 
 }
+
 
 /*
 	========================================================================
@@ -272,6 +298,7 @@ BOOLEAN STARxDoneInterruptHandle(
 	
 	if (pBufDesc->Length <= sizeof(HEADER_802_11) +RXINFO_SIZE +RXWI_SIZE){ // invalid packet length
 		DBGPRINT(RT_DEBUG_TRACE,("len=%d\n", pBufDesc->Length));
+        //Printf_High("invalid packet length,time:%d\n",kal_get_systime());
 		return FALSE;
 	}	
 	/* RX_FCEINFO  */
@@ -291,7 +318,7 @@ BOOLEAN STARxDoneInterruptHandle(
 	if(Status == NDIS_STATUS_FAILURE)
 	{
 		//printf("RTMPCheckRxError\n");
-
+        //Printf_High("RTMPCheckRxError,time:%d\n",kal_get_systime());
 		/* free packet */
 		return FALSE;
 	}
@@ -319,20 +346,29 @@ BOOLEAN STARxDoneInterruptHandle(
 
 
 #if (ATCMD_ATE_SUPPORT == 1)
-	if (gATEInfo.bATEMode == ATE_MODE_RX)
-	{
-		if ((RxCell.pRxINFO->Bcast) || (RxCell.pRxINFO->Mcast))
-		{
-			gATEInfo.RxCntBMPerSec++;
-		}
-		else
-		{
-			gATEInfo.RxCntU2MPerSec++;
+	/* Increase Total receive byte counter after real data received no mater any error or not */
+	gATEInfo.WlanCounters.ReceivedFragmentCount.QuadPart++;
 
-			/*only summary RSSI for u2m packet*/
-			//ATESampleRssi(RxCell.pRxWI);	 /*The old method for ATE, no exactly*/
-			Update_Rssi_Sample(&gATEInfo, RxCell.pRxWI);
-		}
+	if ((RxCell.pRxINFO->Bcast) || (RxCell.pRxINFO->Mcast))
+	{
+		gATEInfo.RxBMTotalCnt++;
+		gATEInfo.OneSecCountersTmp.RxCntBM1S++;
+	}
+	else
+	{
+		gATEInfo.RxU2MTotalCnt++;
+		gATEInfo.OneSecCountersTmp.RxCntU2M1S++;
+	}
+
+	/*only summary RSSI for u2m packet*/
+	//ATESampleRssi(RxCell.pRxWI);	 /*The old method for ATE, no exactly*/
+	Update_Rssi_Sample(&gATEInfo, RxCell.pRxWI);
+
+	if ((pHeader->FC.Type == BTYPE_MGMT) || 
+		(pHeader->FC.Type == BTYPE_CNTL))
+	{
+		gATEInfo.RxMgmtCntlTotalCnt++;
+		gATEInfo.OneSecCountersTmp.RxCntMgmtCntl1S++;
 	}
 #endif
 
@@ -345,6 +381,13 @@ BOOLEAN STARxDoneInterruptHandle(
 
 	switch (pHeader->FC.Type)
 	{	
+		case BTYPE_MGMT:
+		{
+			/* process Management frame */
+			STAHandleRxMgmtFrame(&RxCell);
+		}
+			break;
+            
 		/* CASE I, receive a DATA frame */
 		case BTYPE_DATA:
 		{	
@@ -356,13 +399,6 @@ BOOLEAN STARxDoneInterruptHandle(
 		}
 			break;
 
-		case BTYPE_MGMT:
-		{
-			/* process Management frame */
-			STAHandleRxMgmtFrame(&RxCell);
-		}
-			break;
-
 		default:
 			DBGPRINT(RT_DEBUG_INFO,("DF "));
 			/* free control */
@@ -371,4 +407,66 @@ BOOLEAN STARxDoneInterruptHandle(
  
 	return TRUE;
 }
+
+
+extern MLME_STRUCT *pIoTMlme;
+
+/*
+ * ISR context
+ * SW Filter to exclude unexpected packets
+ * be carefully,that API is called in FCE RX ISR handler to filter out packet
+ * TRUE:  discard the packet directly in FCE RX interrupt handler
+ * FALSE: allow to receive the packet in FCE RX interrupt handler
+ */
+BOOLEAN RxFsIntFilterOut(pBD_t RxpBufDesc)
+{
+    PUCHAR          pBuff;
+    //PRXINFO_STRUC   pRxINFO;
+    //PRXWI_STRUC     pRxWI;
+    PHEADER_802_11  pHeader;
+    
+    //USHORT          DataSize = 0; 
+    //UINT8           U2M = 0;
+    //UINT8           Mcast = 0;  
+    UINT8           type;
+    UINT8           subtype;
+
+  
+    pBuff   = (PUCHAR)RxpBufDesc->pBuf;
+    //pRxINFO = (PRXINFO_STRUC)(pBuff);
+    //pRxWI   = (PRXWI_STRUC)(pBuff + RXINFO_SIZE);
+    pHeader = (PHEADER_802_11)(pBuff + RXINFO_SIZE + RXWI_SIZE);
+    
+    //DataSize = pRxWI->MPDUtotalByteCount;
+    type = pHeader->FC.Type;
+    subtype = pHeader->FC.SubType;
+    //U2M = pRxINFO->U2M;
+    //Mcast = pRxINFO->Mcast;  
+
+    switch  (pIoTMlme->CurrentWifiState)
+    {
+		case WIFI_STATE_INIT:
+		case WIFI_STATE_SMTCNT:
+             if (type == BTYPE_DATA)
+             {
+                if ((subtype == SUBTYPE_NULL_FUNC) || (subtype == SUBTYPE_QOS_NULL))
+                    return TRUE;
+             }
+#if (CFG_SUPPORT_MTK_SMNT == 1) 
+             else if (type == BTYPE_MGMT)
+             {
+                 if (subtype == SUBTYPE_BEACON)
+                    return TRUE;
+             }      
+#endif
+			 break;      
+
+
+        default:
+            break;
+    }
+
+    return FALSE;
+}
+
 

@@ -14,20 +14,20 @@
 * DESIGNER:        
 * DATE:            Jan 2013
 *
-* SOURCE CONTROL:
+*最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
 *
 * LICENSE:
 *     This source code is copyright (c) 2011 Mediatek Tech. Inc.
 *     All rights reserved.
 *
-* REVISION     HISTORY:
+* 深圳市安信可科技 MTK7681串口模块专业生产厂家 
 *   V1.0.0     Jan 2012    - Initial Version V1.0
 *
 *
-* SOURCE:
+* 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
 * ISSUES:
 *    First Implementation.
-* NOTES TO USERS:
+* 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
 *
 ******************************************************************************/
 
@@ -146,20 +146,28 @@ BOOLEAN         PRINT_FLAG = TRUE;
 /* Functions */
 /************************************************/
 
+#if (UART_INTERRUPT == 1)
+extern void UART_Rx_Packet_Dispatch(void);
+#endif
+
 /* Sample code for custom SubTask and Timer */
 VOID IoT_Cust_Sub_Task(VOID)
 {
 
-#if (UARTRX_TO_AIR_AUTO == 1)
+#if (UARTRX_TO_AIR_LEVEL == 2)
 	IoT_Cust_uart2wifi_buffer_trigger_action();
 #endif
 
 #if (ATCMD_SUPPORT == 1)
+#if (UART_INTERRUPT == 1)
+    UART_Rx_Packet_Dispatch();
+#else
 	/* Handle the AT Command */
 	ATcommandHandler();
 #endif
+#endif
 
-#if (UARTRX_TO_AIR_AUTO == 1)
+#if (UARTRX_TO_AIR_LEVEL == 2)
 	static UINT32 i = 0;
 	if (i++ == 0)
 		cnmTimerStartTimer (&IoTCustTimer.custTimer0, 100);
@@ -205,7 +213,7 @@ VOID IoT_Cust_Init(VOID)
 	/*for customer initialization*/
 	cnmTimerInitTimer(&IoTCustTimer.custTimer0,  CustTimer0TimeoutAction, 0, 0);
 
-#if (UARTRX_TO_AIR_AUTO == 1)	
+#if (UARTRX_TO_AIR_LEVEL == 2)	
 	IoT_Cust_uart2wifi_init(300, 10);
 #endif
 
@@ -218,10 +226,9 @@ VOID IoT_Cust_Init(VOID)
 VOID CustTimer0TimeoutAction(UINT_32 param, UINT_32 param2) 
 {
 	//Printf_High("CustTimer0TimeoutAction\n");
-#if (UARTRX_TO_AIR_AUTO == 1)
+#if (UARTRX_TO_AIR_LEVEL == 2)
 	IoT_Cust_uart2wifi_change_mode_handler();
 #endif
-
 	cnmTimerStartTimer (&IoTCustTimer.custTimer0, 100);
 }
 
@@ -609,7 +616,9 @@ VOID IoT_Cust_SMNT_Sta_Chg_Init(VOID)
 #if (CFG_SUPPORT_MTK_SMNT == 1)   /*this is MTK smart connection sub state machine*/
 	SMTCN_state_chg_init();
 
-#else    
+#else
+	pIoTMlme->DataEnable = 1;  /*Enable to handle Data frame in STARxDoneInterruptHandle*/
+
 	/* once jump to SmartConnection State, maybe you need do SmartConnection Initialization here */
 	{
 	   //customer smart connect state initialization
@@ -662,13 +671,14 @@ VOID IoT_Cust_SM_Smnt(VOID)
 	
 	/* After smnt connection done */
 	/* need set Smnt connection information and start to scan*/
-	IoTSmntInfo.AuthMode     = 0;
+	IoTSmntInfo.AuthMode     = Ndis802_11AuthModeOpen;
 	IoTSmntInfo.SsidLen	     = strlen(Ssid);
 	IoTSmntInfo.PassphaseLen = strlen(Passphase); //sizeof(Passphase);
 	memcpy(IoTSmntInfo.Ssid, 	  Ssid, 	 IoTSmntInfo.SsidLen);
 	memcpy(IoTSmntInfo.Passphase, Passphase, IoTSmntInfo.PassphaseLen);
 
 #ifdef PMK_CAL_BY_SW  //jinchuan  calcurate PMK by 7681 software, it will spend 6sec
+	if (IoTSmntInfo.AuthMode >= Ndis802_11AuthModeWPA)
 	{
 		/*Deriver PMK by AP 's SSID and Password*/	
 		UCHAR keyMaterial[40] = {0};

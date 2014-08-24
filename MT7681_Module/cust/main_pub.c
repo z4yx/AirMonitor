@@ -5,7 +5,7 @@
  * DESIGNER:		Charles Su
  * DATE:			Oct 2011
  *
- * SOURCE CONTROL:
+ *最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
  *
  * LICENSE:
  *	 This source code is copyright (c) 2011 Ralink Tech. Inc.
@@ -16,10 +16,10 @@
  *   V1.0.1	 Dec 2011	- Add Caution
  *
  *
- * SOURCE:
+ * 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
  * ISSUES:
  *	First Implementation.
- * NOTES TO USERS:
+ * 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
  *
  ******************************************************************************/
 #include "stdio.h"
@@ -46,6 +46,8 @@ extern IOT_CUST_OP IoTCustOp;
 OUT INT32
 main (VOID)
 {
+	UINT8 i=0;
+	
 	/* customer hook function initial */
 	IoT_Cust_Ops();
 
@@ -55,6 +57,12 @@ main (VOID)
 
 	/* Initialize BSP */
 	BSP_Init();
+
+	/*GPIO initial*/   /*moved from BSP_Init() for customization*/
+	for (i=0; i<=4; i++)
+	{
+		IoT_gpio_output(i, DEFAULT_GPIO04_OUTVAL);
+	}
 
 #if (WIFI_SUPPORT==1)
 	/* Initialize APP */
@@ -74,6 +82,10 @@ main (VOID)
 	 ****** CAUTION : SOFTWARE PROGRAMMER SHALL NOT MODIFY THE FOLLOWING CODES *****
 	 ******************************************************************************/
 	sysTASK_RegTask(wifiTASK_LowPrioTask);
+
+#if (ATCMD_SLT_SUPPORT == 1)
+	SLT_TEST();
+#endif
 
 	/* Start the Kernel process */
 	sysKernelStart();

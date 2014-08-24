@@ -486,7 +486,20 @@ extern UINT8 RTDebugLevel;
 
 #define PRINT_MAC(addr)	\
 	addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]
-	
+
+
+typedef union _LARGE_INTEGER {
+	struct {
+#ifdef RT_BIG_ENDIAN
+		INT32 HighPart;
+		UINT LowPart;
+#else
+		UINT LowPart;
+		INT32 HighPart;
+#endif
+	} u;
+	INT64 QuadPart;
+} LARGE_INTEGER;
 
 #endif /* _TYPES_H_ */
 

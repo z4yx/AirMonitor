@@ -103,13 +103,13 @@ typedef struct GNU_PACKED _FRAME_ADDBA_RSP {
 	USHORT		TimeOutValue;
 }   FRAME_ADDBA_RSP, *PFRAME_ADDBA_RSP;
 
-#if (ADV_PWR_SAVING == 1)  	
+//#if (ADV_PWR_SAVING == 1) || (MT7681_POWER_SAVING == 1)  	
 typedef struct GNU_PACKED _PSPOLL_FRAME {
 	FRAME_CONTROL FC;
 	USHORT Aid;
 	UCHAR Bssid[MAC_ADDR_LEN];
 	UCHAR Ta[MAC_ADDR_LEN];
 } PSPOLL_FRAME, *PPSPOLL_FRAME;
-#endif /* ADV_PWR_SAVING */
+//#endif /* ADV_PWR_SAVING */
 
 #endif // __DOT11_BASE_H__ //

@@ -43,7 +43,9 @@
 /******************************************************************************
  * MACRO DEFINITION  for AT Comamnd
  ******************************************************************************/
+#define		AT_CMD_PREFIX_MAX_LEN	12
 #define		AT_CMD_PREFIX			"AT#"
+#define		AT_CMD_PREFIX2			"iwpriv ra0 "
 
 /* AT command Type */
 /* if one or more paramter following the command type*/
@@ -85,6 +87,20 @@
 #define		AT_CMD_STATIC_IP		"StaticIP "
 #define		AT_CMD_JTAGMODE			"Jtag"
 #define		AT_CMD_NETSTAT			"Netstat "
+
+/*Only for Debug*/
+#define		AT_CMD_MAC_SET			"MAC "
+#define		AT_CMD_BBP_SET			"BBP "
+#define		AT_CMD_RF_SET			"RF "
+#define		AT_CMD_SLT_CTL			"SLT"
+
+
+
+
+
+/*Default output value for GPIO0~4*/
+#define		DEFAULT_GPIO04_OUTVAL   (1)
+
 
 
 

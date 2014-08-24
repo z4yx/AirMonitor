@@ -143,7 +143,7 @@ typedef enum _WPA_KDE_ID
    	KDE_NONCE,
    	KDE_LIFETIME,
    	KDE_ERROR,
-#ifdef DOT11W_PMF_SUPPORT
+#if (DOT11W_PMF_SUPPORT == 1)
 	KDE_IGTK,				// Defined in IEEE 802.11w/D10.0
 #endif // DOT11W_PMF_SUPPORT //
    	KDE_RESV_OTHER

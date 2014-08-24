@@ -97,6 +97,30 @@
 #define REASON_CIPHER_SUITE_REJECTED    24
 #define REASON_DECLINED                 37
 
+/* ================================================================ */
+/* Tx /	Rx / Mgmt ring descriptor definition */
+/* ================================================================ */
+
+/* the following PID values are used to mark outgoing frame type in TXD->PID so that */
+/* proper TX statistics can be collected based on these categories */
+/* b3-2 of PID field - */
+#define PID_MGMT				0x05
+#define PID_BEACON				0x0c
+#define PID_DATA_NORMALUCAST	0x02
+#define PID_DATA_AMPDU	 		0x04
+#define PID_DATA_NO_ACK    		0x08
+#define PID_DATA_NOT_NORM_ACK	0x03
+/* value domain of pTxD->HostQId (4-bit: 0~15) */
+#define QID_AC_BK               1   /* meet ACI definition in 802.11e */
+#define QID_AC_BE               0   /* meet ACI definition in 802.11e */
+#define QID_AC_VI               2
+#define QID_AC_VO               3
+#define QID_HCCA                4
+#define NUM_OF_TX_RING          5
+#define QID_CTRL	            9
+#define QID_MGMT                13
+#define QID_RX                  14
+#define QID_OTHER               15
 
 //============================================================
 // ASIC WCID Table definition.

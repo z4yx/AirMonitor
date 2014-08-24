@@ -17,20 +17,20 @@
 * DESIGNER:        
 * DATE:            Jan 2013
 *
-* SOURCE CONTROL:
+*最新版本程序我们会在 http://www.ai-thinker.com 发布下载链接
 *
 * LICENSE:
 *     This source code is copyright (c) 2011 Ralink Tech. Inc.
 *     All rights reserved.
 *
-* REVISION     HISTORY:
+* 深圳市安信可科技 MTK7681串口模块专业生产厂家 
 *   V1.0.0     Jan 2012    - Initial Version V1.0
 *
 *
-* SOURCE:
+* 串口WIFI 价格大于500 30元   大于5K  28元   大于10K  20元
 * ISSUES:
 *    First Implementation.
-* NOTES TO USERS:
+* 淘宝店铺http://anxinke.taobao.com/?spm=2013.1.1000126.d21.FqkI2r
 *
 ******************************************************************************/
 
@@ -73,7 +73,7 @@ INT32 IoT_process_app_function_packet(
 		UART_Information *UartData_out;
 		UINT32 gpio_input=0;
 		//UINT8 gpio_read=0,  Polarity=0;
-#if (UARTRX_TO_AIR_QUERY == 1)
+#if (UARTRX_TO_AIR_LEVEL == 1)
 		UINT16 uart_content_count=0;
 #endif
 		UCHAR iot_buffer[IOT_BUFFER_LEN]={0};
@@ -251,7 +251,7 @@ INT32 IoT_process_app_function_packet(
 				
 				DBGPRINT(RT_DEBUG_TRACE,("UART_GET_REQUEST\n"));
 
-#if (UARTRX_TO_AIR_QUERY == 1)
+#if (UARTRX_TO_AIR_LEVEL == 1)
 
 				if(pPacketInfo->Sequence == preSeq)
 					return 0;

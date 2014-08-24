@@ -3,12 +3,13 @@
 
 void udp_server_init()
 {
-	struct uip_conn *udp_conn=NULL;
+	//struct uip_conn *udp_conn=NULL;
+	UIP_UDP_CONN *udp_conn=NULL;
 
 	/* We don't specify a remote address and a remote port,
 	   that means we can receive data from any address. */
 	udp_conn = uip_udp_new(NULL, HTONS(0));
-	if (udp_conn) {
+	if(udp_conn) {
 		/* Bind to local 7777 port. */
 		uip_udp_bind(udp_conn, HTONS(7682));
 	}
@@ -43,5 +44,6 @@ void udp_server_sample()
 
 	if (uip_poll()) {
 	}
+
 }
 

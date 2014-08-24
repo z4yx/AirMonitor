@@ -197,7 +197,7 @@ COPY_OVERLAY += -j .ovlysec11
 #*******************************************************************************
 DBGFLAGS	 =
 DBGFLAGS	+=	-DDBG_ENA=1
-DBGFLAGS  +=  -DDBG_TRAP=0
+DBGFLAGS    +=  -DDBG_TRAP=0
 DBGFLAGS	+=	-DDBG_ASSERT=0
 DBGFLAGS	+=	-DSIM_RTL=0
 DBGFLAGS	+=	-DSIM_ADS=0
@@ -212,7 +212,8 @@ DBGFLAGS	+=	-DDBG_MICTOR=0
 # BSP SETTING
 FUNCFLAGS	=	-D__MT7681
 FUNCFLAGS	+=	-DUART_SUPPORT=1
-FUNCFLAGS	+=	-DUART_INTERRUPT=0
+FUNCFLAGS	+=	-DUART_INTERRUPT=1          #0,UART polling ;1,UART interrupt,we prefer to use UART interrupt 
+FUNCFLAGS	+=	-DMT7681_POWER_SAVING=0     #STA power saving mode as Specification said,AP should have power saving mode
 
 # WIFI/BT FUNCTIONS 
 FUNCFLAGS	+=	-DBT_SUPPORT=0
@@ -249,7 +250,7 @@ FUNCFLAGS	+=	-DATCMD_SOFTAP_SUPPORT=1
 FUNCFLAGS	+=	-DATCMD_GET_VER_SUPPORT=0
 
 FUNCFLAGS	+=	-DATCMD_RECOVERY_SUPPORT=0
-FUNCFLAGS	+=	-DATCMD_ATE_SUPPORT=0
+FUNCFLAGS	+=	-DATCMD_ATE_SUPPORT=0         #Only available in flags_recovery.mk
 FUNCFLAGS	+=	-DATCMD_EFUSE_SUPPORT=0
 FUNCFLAGS	+=	-DATCMD_FLASH_SUPPORT=1
 
@@ -257,9 +258,11 @@ FUNCFLAGS	+=	-DATCMD_FLASH_SUPPORT=1
 # DATA PARSER FLAGS
 FUNCFLAGS	+=	-DIOT_PWM_SUPPORT=1
 FUNCFLAGS	+=	-DAES_DATAPARSING_SUPPORT=0
-FUNCFLAGS	+=	-DUARTRX_TO_AIR_QUERY=1
-FUNCFLAGS	+=	-DUARTRX_TO_AIR_AUTO=0        #Is developping,not finished
 FUNCFLAGS	+=	-DENABLE_DATAPARSING_SEQUENCE_MGMT=0
+#----UARTRX_TO_AIR_LEVEL
+#----1,handle uart rx data normaly,and send uart rx data which left in ring to air by peer query;
+#----2,do not handle uart rx data,only send uart rx data to air automatically
+FUNCFLAGS	+=	-DUARTRX_TO_AIR_LEVEL=1
 
 # FEATURE FLAGS
 FUNCFLAGS	+=	-DXIP_ENABLE=0                #xip_ovly.h

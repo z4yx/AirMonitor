@@ -52,7 +52,7 @@ typedef struct _TIMER_T {
 ********************************************************************************
 */
 extern ROOT_TIMER_T         rRootTimer;
-extern UINT32         jiffies;
+extern volatile UINT32      jiffies;
 
 /*******************************************************************************
 *                           P R I V A T E   D A T A

@@ -12,6 +12,7 @@
 #include "dot11i_wpa.h"
 #include "iot_custom.h"
 #include "bmd.h"
+#include "crypt_md5.h"
 
 
 /******************************************************************************
@@ -42,6 +43,16 @@
 #endif
 #ifndef BW_40
 #define BW_40		1
+#endif
+
+/*
+ *  use in STA power saving mode
+ *  when does we enter sleep? below conditions are neccesary
+ *  OK,you can also change their value
+ */
+#if (MT7681_POWER_SAVING == 1)
+#define PS_FCE_TXIDLE_TIME          (1*1000)       /* unit: msec */
+#define PS_UART_TRXIDLE_TIME        (3*1000)       /* unit: msec */
 #endif
 
 #define BEACON_LOST_TIME			(20*1000)	/* unit: msec */
@@ -162,13 +173,38 @@ typedef enum {
       pa_space
 } UART_parity;
 
-#if (UART_INTERRUPT == 1)
-//buffer length for uart rx isr buffer whose data is moved from UART HW RX FIFO
-#define    UARTRX_RING1_LEN    64      
+/*
+ *  packet type
+ */
+typedef enum {
+    PKT_UNKNOWN,
+    PKT_ATCMD,
+    PKT_IWCMD 
+} PKT_TYPE;
 
-//buffer length for uart rx high level buffer whose data is moved from uart rx isr buffer
-#define    UARTRX_RING2_LEN    1024   
-#define    NUM_DESCS           4
+#if (UART_INTERRUPT == 1)
+
+
+//buffer length for uart rx buffer whose data is moved from uart UART HW RX FIFO
+#define    UARTRX_RING_LEN    512   
+
+//buffer length for uart tx isr buffer whose data is moved to UART HW TX FIFO
+#define    UARTTX_RING_LEN    64
+
+//how many packets can be buffered in rxring ,(each packet size need < UARTRX_RING_LEN - 1)
+#define    NUM_DESCS           30
+
+//packet header detect buf size
+#define    HEAD_SIZE           AT_CMD_PREFIX_MAX_LEN
+
+typedef void (*UART_TX_FUNC)();
+typedef void (*UART_RX_FUNC)();
+
+typedef struct {
+   PKT_TYPE pkt_type;
+   UINT16   pkt_len;
+}PKT_FIFO;//packet infor is in sequence with index[0,num_desc-1] which mapping the sequence in rx
+
 
 /*
  * 2014/05/13,terrence
@@ -176,11 +212,25 @@ typedef enum {
  * we just need to know the packet number and their lengh in sequence
  */
 typedef struct {
-    UINT8   num_desc;              //packet number in ring buffer
+    PKT_TYPE  cur_type;              //receiving packet:which packet type is receiving current? 
+    UINT8     cur_num;               //receiving packet:current index of receiving packet
+    UINT8     pkt_num;               //completely packets:packet number in ring buffer
+    PKT_FIFO  infor[NUM_DESCS];      //completely packets:FIFO,packet infor in ring
+} PKT_DESC; 
 
-    //be careful!!!,the length is in sequence with index[0,num_desc-1] which mapping the equence in rx ring
-    UINT16  pkt_len[NUM_DESCS];   
-} PKT_DESC;
+
+typedef struct
+{
+      BUFFER_INFO                    Rx_Buffer;  //receive buffer
+      PKT_DESC                       Rx_desc;    //description       
+      
+      BUFFER_INFO                    Tx_Buffer;  //transmit buffer
+
+      /*tx, rx call back function*/
+      UART_TX_FUNC                   tx_cb;
+      UART_RX_FUNC                   rx_cb;
+} UARTStruct;
+
 #endif
 
 
@@ -517,11 +567,11 @@ typedef enum _NDIS_802_11_WEP_STATUS
     Ndis802_11Encryption1KeyAbsent = Ndis802_11WEPKeyAbsent,
     Ndis802_11WEPNotSupported,
     Ndis802_11EncryptionNotSupported = Ndis802_11WEPNotSupported,
-    Ndis802_11Encryption2Enabled,
+    Ndis802_11Encryption2Enabled,   /* TKIP mode*/
     Ndis802_11Encryption2KeyAbsent,
-    Ndis802_11Encryption3Enabled,
+    Ndis802_11Encryption3Enabled,   /* AES mode*/
     Ndis802_11Encryption3KeyAbsent,
-    Ndis802_11Encryption4Enabled,	// TKIP or AES mix
+    Ndis802_11Encryption4Enabled,	/* TKIP-AES mix mode*/
     Ndis802_11Encryption4KeyAbsent,
     Ndis802_11GroupWEP40Enabled,
 	Ndis802_11GroupWEP104Enabled
@@ -534,7 +584,7 @@ typedef enum _NDIS_802_11_AUTHENTICATION_MODE
 	Ndis802_11AuthModeAutoSwitch,
 	Ndis802_11AuthModeWPA,
 	Ndis802_11AuthModeWPAPSK,
-	Ndis802_11AuthModeWPANone,
+	Ndis802_11AuthModeWPANone,		/*for ad-hoc*/
 	Ndis802_11AuthModeWPA2,
 	Ndis802_11AuthModeWPA2PSK,    
 	Ndis802_11AuthModeWPA1WPA2,
@@ -550,6 +600,27 @@ typedef struct GNU_PACKED _IOT_SMNT_INFO {
 	UINT8  PassphaseLen;
 	UCHAR  PMK[CIPHER_TEXT_LEN];				/* WPA2-PSK mode PMK */
 } IOT_SMNT_INFO, *PIOT_SMNT_INFO;
+
+
+typedef struct {
+	unsigned long   LastBeaconRxTime;
+	USHORT          Aid;
+    //2014/05/23,terrence,MT7681 power saving parameters
+    UINT16          BeaconInterval;
+    UCHAR           DtimCount;
+	UCHAR           DtimPeriod;
+	UCHAR           BcastFlag;        /* rx,TRUE if BMC data in this becaon interval */
+	UCHAR           MessageToMe;      /* rx,TRUE if UC  data in this beacon interval */
+//#if (MT7681_POWER_SAVING == 1)    
+    UCHAR           More_BMC;         /* TRUE if more BMC data (MoreData bit) */
+	UCHAR           More_UC;          /* TRUE if more UC  data (MoreData bit) */
+    UCHAR           RxPsReady;        /* rx,whether rx ready to enter power saving mode */
+    UINT32          FCELastTxTime;    /* tx,tx jiffies*/
+    UINT32          UARTLastTRTime;    /* uart last active time */
+    UINT32          LinkPollingTime;   /* ACTIVE NULL to polling link*/
+    UCHAR           PsMode;           /* whether notified AP we are in power saving mode*/
+//#endif
+} STA_PWRSAV;
 
 
 typedef struct GNU_PACKED _STA_ADMIN_CONFIG {
@@ -580,35 +651,35 @@ typedef struct GNU_PACKED _STA_ADMIN_CONFIG {
 	UINT8  Cfg_BW;            /* BW for current AP */
 	UINT8  Cfg_Channel;       /* Channel for current AP */
 	UINT8  AP_PhyMode;        /* Phy mode for current AP */
-	
+	UINT8  AP_MCS;        	  /* The MCS for current AP's Beacon */
+
 	NDIS_802_11_AUTHENTICATION_MODE	AuthMode;	/* This should match to whatever microsoft defined */
-	UCHAR  CipherAlg;
 	UCHAR  Passphase[CIPHER_TEXT_LEN];
 	UINT8  PassphaseLen;
 	UCHAR  DefaultKeyId;
+	//	UCHAR  CipherAlg;
 
-#if CFG_SUPPORT_4WAY_HS
+#if 1 //CFG_SUPPORT_4WAY_HS
 	//[Arron Modify start]: Added for WPA PSK
-
 	/* Add to support different cipher suite for WPA2/WPA mode */
 	NDIS_802_11_ENCRYPTION_STATUS GroupCipher;	/* Multicast cipher suite */
 	NDIS_802_11_ENCRYPTION_STATUS PairCipher;	/* Unicast cipher suite */
 	BOOLEAN bMixCipher;				/* Indicate current Pair & Group use different cipher suites */
 	USHORT RsnCapability;
 	
-	NDIS_802_11_WEP_STATUS WepStatus;
-	
-	NDIS_802_11_WEP_STATUS GroupKeyWepStatus;
-
+//	NDIS_802_11_WEP_STATUS WepStatus;
+//	NDIS_802_11_WEP_STATUS GroupKeyWepStatus;
 //	UCHAR WpaPassPhrase[64];			/* WPA PSK pass phrase */
 //	UINT WpaPassPhraseLen;			/* the length of WPA PSK pass phrase */
+//	UCHAR GMK[LEN_GMK]; 		/* WPA PSK mode GMK only for ap mode */ 
+//	UCHAR GNonce[32];				/* GNonce for WPA2PSK from authenticator ,only for ap mode*/ 
+
 	UCHAR PMK[LEN_PMK];				/* WPA PSK mode PMK */
 	UCHAR PTK[LEN_PTK];				/* WPA PSK mode PTK */
-//	UCHAR GMK[LEN_GMK];			/* WPA PSK mode GMK only for ap mode */ 
 	UCHAR GTK[MAX_LEN_GTK];			/* GTK from authenticator */
-//	UCHAR GNonce[32];				/* GNonce for WPA2PSK from authenticator ,only for ap mode*/ 
 	CIPHER_KEY PairwiseKey;
 	CIPHER_KEY SharedKey[1][4]; 	/* STA always use SharedKey[BSS0][0..3] */
+	
 	/* For WPA-PSK supplicant state */
 	UINT8 WpaState;					/* Default is SS_NOTUSE and handled by microsoft 802.1x */
 	UCHAR R_Counter[LEN_KEY_DESC_REPLAY]; /* store the R_Counter value in 4way-MSG1 or 4way-MSG3 for build response */
@@ -621,20 +692,21 @@ typedef struct GNU_PACKED _STA_ADMIN_CONFIG {
 
 	//[Arron Modify End]: Added for WPA PSK
 #endif
+
 	/* New for WPA, windows want us to to keep association information and */
 	/* Fixed IEs from last association response */
 	//NDIS_802_11_ASSOCIATION_INFORMATION AssocInfo;
 	//USHORT ReqVarIELen;			/* Length of next VIE include EID & Length */
 	//UCHAR ReqVarIEs[MAX_VIE_LEN];	/* The content saved here should be little-endian format. */
+
+	STA_PWRSAV PwrCfg;
 } STA_ADMIN_CONFIG, *PSTA_ADMIN_CONFIG;
 
 /******************************************************************************
  * Interface  MACRO & STRUCTURE
  ******************************************************************************/
-#if (UARTRX_TO_AIR_QUERY == 1)
+#if (UARTRX_TO_AIR_LEVEL == 1)
 #define UART_RX_RING_BUFF_SIZE IOT_BUFFER_LEN - CP_HDR_LEN - CP_DATA_HDR_LEN
-#else
-#define UART_RX_RING_BUFF_SIZE IOT_BUFFER_LEN
 #endif
 
 
@@ -667,6 +739,7 @@ typedef struct GNU_PACKED t_HWTimerPWMInfo
 
 }HWTimerPWMInfo;
 
+
 #endif
 
 
@@ -690,8 +763,11 @@ VOID free(void *ptr);
 /******************************************************************************
  * FUNCTIONS DEFINITION
  ******************************************************************************/
-INT32 IoT_uart_output(CHAR *msg, size_t count);
-INT32 IoT_uart_input(CHAR *msg, INT16 count);
+INT32 IoT_uart_output(UCHAR *msg, size_t count);
+
+#if (UART_INTERRUPT == 0)
+INT32 IoT_uart_input(UCHAR *msg, INT16 count);
+#endif
 
 UINT16 uart_get_avail(void);
 UCHAR  uart_rb_pop(void);
@@ -781,12 +857,8 @@ VOID   IoT_jtag_mode_switch(UINT8 switch_on);
 UINT32 IoT_jtag_mode_get(void);
 
 
-VOID   Sys_reboot(VOID);
+VOID   Sys_reboot(VOID) XIP_ATTRIBUTE(".xipsec0");
 VOID   IoT_Cmd_LinkDown(USHORT reason);
-VOID   MlmeDeauthReqAction(IN PUCHAR pDA_Addr,
-						 IN PUCHAR pBSSID_Addr,
-						 IN USHORT Reason);
-VOID   UART_Configure_From_Flash(VOID);
 INT32  IoT_Xmodem_Update_FW(VOID);
 VOID   IoT_Cmd_Set_Channel(UINT8 Channel);
 
@@ -794,9 +866,9 @@ VOID   IoT_Cmd_Set_Channel(UINT8 Channel);
 
 /*if all data is 0xFF or 0x00, we assume it is invalide*/
 BOOLEAN check_data_valid(PUINT8 pdata, UINT16 len);
-BOOLEAN load_sta_cfg(VOID);
-BOOLEAN reset_sta_cfg(VOID);
-VOID    store_sta_cfg(VOID);
+BOOLEAN load_sta_cfg(VOID)   XIP_ATTRIBUTE(".xipsec0");
+BOOLEAN reset_sta_cfg(VOID);   /*jinchuan ,not declare this function as XIP func, to avoid system halt*/
+VOID    store_sta_cfg(VOID)  XIP_ATTRIBUTE(".xipsec0");
 
 VOID IoT_Cust_SMNT_Sta_Chg_Init(VOID);
 VOID IoT_Cust_SM_Smnt(VOID);
@@ -962,6 +1034,61 @@ BOOLEAN	Set_ATE_TX_COUNT_Proc(IN UINT32 TxCount);
 BOOLEAN Set_ATE_TX_POWER(IN UINT32 TxPower);
 BOOLEAN Set_ATE_Efuse_Read(IN USHORT Offset, OUT UINT8 *pdata);
 BOOLEAN Set_ATE_Efuse_Write(IN USHORT Offset,  IN UINT8 data);
+#endif
+
+#if (UART_INTERRUPT == 1)
+void UART_Tx_Cb(void);
+void UART_Rx_Cb(void);
+void UART_Rx_Packet_Dispatch(void);
+void UARTRx_Buf_Init(UARTStruct *qp);
+#endif
+
+
+VOID IoT_AT_cmd_resp_header(INT8 *pHeader, size_t* plen, INT8* ATcmdPrefix, INT8* ATcmdType) XIP_ATTRIBUTE(".xipsec0");
+
+#if (ATCMD_UART_SUPPORT == 1) && (UART_SUPPORT == 1)
+INT16 IoT_exec_AT_cmd_uart(PCHAR command_buffer, INT16 at_cmd_len) XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_ATE_SUPPORT == 1)
+INT16 IoT_exec_AT_cmd_ATE_Cal2(PCHAR command_buffer, INT16 at_cmd_len) XIP_ATTRIBUTE(".xipsec0");
+UINT8 RTMPIoctlE2PROM(BOOLEAN type, char *pBuf, INT16 Len)  XIP_ATTRIBUTE(".xipsec0");
+UINT8 ATE_CMD_CALI_SET_HANDLE(char *pBuf, INT16 Len) XIP_ATTRIBUTE(".xipsec0");
+INT16 IoT_exec_AT_cmd_ATE_Cal(PCHAR cmd_buf, INT16 Len) XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_FLASH_SUPPORT == 1)
+INT16 IoT_exec_AT_cmd_Flash_Set(PCHAR command_buffer, INT16 at_cmd_len) XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_EFUSE_SUPPORT == 1)
+INT16 IoT_exec_AT_cmd_Efuse_Set(PCHAR command_buffer, INT16 at_cmd_len)  XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_CH_SWITCH_SUPPORT == 1)
+INT16 IoT_exec_AT_cmd_ch_switch(PCHAR pCmdBuf, INT16 at_cmd_len) XIP_ATTRIBUTE(".xipsec0");
+
+#endif
+
+#if (ATCMD_NET_MODE_SUPPORT == 1)
+INT16 IoT_exec_AT_cmd_netmode(PCHAR command_buffer, INT16 at_cmd_len)  XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+
+#ifdef CONFIG_SOFTAP
+INT16 IoT_exec_AT_cmd_Conf_SoftAP(PCHAR pCmdBuf, INT16 at_cmd_len)  XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_REBOOT_SUPPORT == 1)
+VOID IoT_exec_AT_cmd_reboot(VOID)  XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_GET_VER_SUPPORT == 1)
+INT16 IoT_exec_AT_cmd_ver(PCHAR pCmdBuf) XIP_ATTRIBUTE(".xipsec0");
+#endif
+
+#if (ATCMD_JTAGMODE_SUPPORT == 1)
+VOID IoT_exec_AT_cmd_jtag_mode_switch(PCHAR pCmdBuf, INT16 at_cmd_len) XIP_ATTRIBUTE(".xipsec0");
 #endif
 
 #endif

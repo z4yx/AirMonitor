@@ -41,7 +41,7 @@ void printf(const char *fmt, ...);
 #define printf(...)
 #endif
 
-#if (DBG_MSG_HIGH == 1)
+#if ((DBG_MSG_HIGH == 1) && (ATCMD_SLT_SUPPORT != 1))
 void Printf_High(const char *fmt, ...);
 #else
 #define Printf_High(...)
@@ -57,10 +57,10 @@ char *gets(char *s);
 int ungetc(int c, FILE *stream);
 
 int fputc(int c, FILE *stream);
-int fputs(const char *s, FILE *stream);
-int putc(int c, FILE *stream);
+//int fputs(const char *s, FILE *stream);
+//int putc(int c, FILE *stream);
 int putchar(int c);
-int puts(const char *s);
+//int puts(const char *s);
 
 FILE *fopen(const char *path, const char *mode);
 FILE *fdopen(int fd, const char *mode);

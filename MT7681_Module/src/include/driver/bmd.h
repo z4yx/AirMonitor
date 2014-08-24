@@ -195,22 +195,21 @@ typedef struct __BUFFER_INFO
 	}\
 }
 
-#if 1
-extern void Buff_init(BUFFER_INFO *Buf,kal_uint8 *Buffaddr, kal_uint16 uTotalSize);
-extern void Buff_Push(BUFFER_INFO *Buf,kal_uint8 *pushData);
-extern void Buff_Pop(BUFFER_INFO *Buf,kal_uint8 *popData);
-extern kal_uint8 Buff_IsEmpty(BUFFER_INFO *Buf);
-extern kal_uint8 Buff_IsFull (BUFFER_INFO *Buf);
-extern kal_uint16 Buff_GetRoomLeft (BUFFER_INFO *Buf);
-extern kal_uint16 Buff_GetBytesAvail (BUFFER_INFO *Buf);
-extern kal_uint16 Buff_GetLength(BUFFER_INFO *Buf);
-extern void Buff_Flush (BUFFER_INFO *Buf);
-extern void Buff_look(BUFFER_INFO *Buf,kal_uint8 *popData,kal_uint8 num);
-extern void Get32FromBuff(BUFFER_INFO *Buf,kal_uint32 *DATA);
-extern void Put32toBuff(BUFFER_INFO *Buf,kal_uint32 *DATA);
-extern void MemCPY(kal_uint8 *dst,kal_uint8 *src,kal_uint32 len);
-extern void MemSET(kal_uint8 *dst,kal_uint8 data,kal_uint32 len);
-#endif
+#define Buff_RollBack(_Buffer,_num) \
+{\
+    BUFFER_INFO *_Buf = _Buffer; \
+    kal_uint16 temp_len;      \
+    if (BWrite(_Buf) >= _num) \
+    { \
+        BWrite(_Buf) -= _num; \
+    } \  
+    else \
+    {    \
+        temp_len = _num - BWrite(_Buf);\
+        BWrite(_Buf) = BLength(_Buf) - temp_len; \
+    } \       
+}
+
 
 #endif
 

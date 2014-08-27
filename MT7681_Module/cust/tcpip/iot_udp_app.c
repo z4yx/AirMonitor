@@ -6,9 +6,7 @@
 #include "uip.h"
 #include "uiplib.h"
 #include "iot_api.h"
-//#include "sample_resolv_usage.h"
-//#include "sample_udp_client.h"
-#include "sample_udp_server.h"
+#include "ntp.h"
 
 #if CFG_SUPPORT_DNS
 #include "resolv.h"
@@ -32,6 +30,7 @@ iot_udp_app_init(void)
 	resolv_init();
 #endif
 	/* Customer APP start. */
+	ntp_init();
 
 	/* udp_client_init(); */
 	// udp_server_init();
@@ -56,6 +55,8 @@ iot_udp_appcall(void)
 		handle_resolv();
 #endif
 	/* Customer APP start. */
+	} else if(rport == NTPPort) {
+		ntp_appcall();
 
 	// } else if (lport == 7682) {
 	// 	udp_server_sample();

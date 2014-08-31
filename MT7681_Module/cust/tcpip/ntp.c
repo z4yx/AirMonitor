@@ -25,15 +25,7 @@
 #define NULL (void *)0
 #endif /* NULL */
 
-static uint32_t ntohl(uint32_t __x)
-{
-    return  ((uint32_t)( (((uint32_t)(__x) & (uint32_t)0x000000ffUL) << 24) |
-            (((uint32_t)(__x) & (uint32_t)0x0000ff00UL) <<  8) |
-            (((uint32_t)(__x) & (uint32_t)0x00ff0000UL) >>  8) |
-            (((uint32_t)(__x) & (uint32_t)0xff000000UL) >> 24) ));
-}
-
-#define htonl ntohl
+#define htonl(x) ntohl(x)
 
 struct NTPPacket
 {
@@ -66,6 +58,7 @@ struct NTPClientState
 
 static struct uip_udp_conn *ntp_conn;
 static struct NTPClientState s;
+static struct NTPPacket packet;
 
 static void ntp_packet_init(struct NTPPacket *p)
 {
@@ -105,20 +98,19 @@ int ntp_query(const char *host)
 static void ntp_deltatime(int64_t delte)
 {
     uint64_t now;
-    now = kal_get_systime() + delte + TIMEZONE*3600;
+    now = GetMsTimer() + delte + TIMEZONE*3600;
     LOG_D("delta time: %d", (int)delte);
     LOG_D("current time is %d", (int)now);
 }
 
 static void senddata(void)
 {
-    struct NTPPacket *packet;
-    packet = (struct NTPPacket *)uip_appdata;
-    ntp_packet_init(packet);
+    ntp_packet_init(&packet);
 
-    s.client_send_time = kal_get_systime();
-    packet->oritimestamphigh = htonl(s.client_send_time);
+    s.client_send_time = GetMsTimer();
+    packet.oritimestamphigh = htonl(s.client_send_time);
 
+    memcpy(uip_appdata, &packet, sizeof(struct NTPPacket));
     uip_udp_send(sizeof(struct NTPPacket));
 
     LOG_D("client_send_time: %d", (int)s.client_send_time);
@@ -126,20 +118,19 @@ static void senddata(void)
 
 static void newdata(void)
 {
-    struct NTPPacket *packet;
     uint32_t client_recv_time;
     int64_t  delta_time;
 
-    client_recv_time = kal_get_systime();
+    client_recv_time = GetMsTimer();
     LOG_D("client_recv_time: %d", (int)client_recv_time);
 
-    packet = (struct NTPPacket *)uip_appdata;
+    memcpy(&packet, uip_appdata, sizeof(struct NTPPacket));
 
-    packet->recvtimestamphigh = ntohl(packet->recvtimestamphigh);
-    packet->trantimestamphigh = ntohl(packet->trantimestamphigh);
+    packet.recvtimestamphigh = ntohl(packet.recvtimestamphigh);
+    packet.trantimestamphigh = ntohl(packet.trantimestamphigh);
 
-    delta_time = ((packet->recvtimestamphigh - (int64_t)s.client_send_time)
-        + (packet->trantimestamphigh - (int64_t)client_recv_time)) >> 1;
+    delta_time = ((packet.recvtimestamphigh - (int64_t)s.client_send_time)
+        + (packet.trantimestamphigh - (int64_t)client_recv_time)) >> 1;
 
     // convert from ntp epoch to unix epoch
     delta_time -= From00to70;

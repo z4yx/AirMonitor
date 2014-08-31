@@ -25,15 +25,10 @@
 #include "adc.h"
 #include "sht1x.h"
 #include "gp2y1010.h"
-#include "enc28j60.h"
-#include "network.h"
-#include "yeelink.h"
 #include "calendar.h"
 #include "alarm.h"
 #include <stdlib.h>
 #include <string.h>
-
-const Task_t SystemTasks[] = { Network_Task, Yeelink_Task };
 
 enum {STATE_INIT, STATE_ERR, STATE_SYNC, STATE_REPORT, STATE_REPORT_WAIT, STATE_POWEROFF, STATE_WAIT};
 
@@ -41,7 +36,6 @@ static void periphInit(void)
 {
 	SHT1x_Config();
 	GP2Y1010_Init();
-	Network_Init();
 }
 
 //核心组件初始化,包括串口(用于打印调试信息)
@@ -74,7 +68,7 @@ static void measure_and_report()
 		}
 	}
 
-	Yeelink_Send(datetime, air, temp, humi);
+	// Yeelink_Send(datetime, air, temp, humi);
 }
 
 int main(void)
@@ -102,17 +96,12 @@ int main(void)
 
 	periphInit();
 
-	Yeelink_Init();
 	Calendar_Init();
 
 	int state = STATE_INIT;
 	SysTick_t timeout = 0;
 	while (1)
 	{
-
-		//运行系统中声明的任务
-		for(int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++)
-			(SystemTasks[i])();
 
 		switch(state)
 		{
@@ -135,16 +124,15 @@ int main(void)
 				state = STATE_REPORT_WAIT;
 				break;
 			case STATE_REPORT_WAIT:
-				if(Yeelink_Idle())
+				/*if(Yeelink_Idle())
 					state = STATE_POWEROFF;
-				else if(GetSystemTick() - timeout > REPORT_TIMEOUT){
+				else */if(GetSystemTick() - timeout > REPORT_TIMEOUT){
 					ERR_MSG("Report timed out", 0);
 					state = STATE_POWEROFF;
 				}
 				break;
 			case STATE_POWEROFF:
 				DBG_MSG("Preparing to power off...", 0);
-				enc28j60Pwrsv();
 				GP2Y1010_Poweroff();
 				PWR_EnterSTANDBYMode();
 				ERR_MSG("Failed to enter standby mode.", 0);

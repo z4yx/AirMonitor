@@ -16,8 +16,6 @@
  * =====================================================================================
  */
 
-#include "uip.h"
-#include "ntp.h"
 #include "common.h"
 #include "systick.h"
 
@@ -34,12 +32,11 @@ static char iso8601[ISO8601_BUF_SIZE];
 void Calendar_Init(void)
 {
 	state = STATE_NONE;
-	ntp_init();
 }
 
 void Calendar_Sync(void)
 {
-	ntp_query(NTP_SERVER);
+	// ntp_query(NTP_SERVER);
 	state = STATE_SYNCING;
 }
 

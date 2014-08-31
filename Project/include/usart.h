@@ -3,10 +3,9 @@
 
 #include "stm32f10x.h"
 
-void USART_Config(void);
-void USART_RxInt_Config(bool bEnabled);
-int USART_putchar(int ch);
-int USART_getchar(void);
-void USART_printf(char *Data, ...);
+void USARTx_Config(USART_TypeDef* USARTx, u32 USART_BaudRate);
+int USART_getchar();
+int USART_ReadInt();
+void USARTx_printf(USART_TypeDef* USARTx, char *Data, ...);
 
 #endif

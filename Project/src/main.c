@@ -51,7 +51,7 @@ static void coreInit(void)
 	
 	SystemCoreClockUpdate();
 	SysTick_Init();
-	USART_Config();
+	USARTx_Config(DEBUG_USART, 115200);
 	Alarm_Config();
 }
 

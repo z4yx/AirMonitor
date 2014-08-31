@@ -24,62 +24,58 @@
 /*
  * 初始化串口配置
  */
-void USART_Config(void)
+void USARTx_Config(USART_TypeDef* USARTx, u32 USART_BaudRate)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
     USART_InitTypeDef USART_InitStructure;
+    GPIO_TypeDef *USART_GPIO;
+    u16 USART_Rx, USART_Tx;
 
-    /* config USART1 clock */
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
+    switch((u32)USARTx) {
+        case (u32)USART1:
+            USART_GPIO = GPIOA;
+            USART_Tx = GPIO_Pin_9;
+            USART_Rx = GPIO_Pin_10;
+            break;
+        case (u32)USART2:
+            USART_GPIO = GPIOA;
+            USART_Tx = GPIO_Pin_2;
+            USART_Rx = GPIO_Pin_3;
+            break;
+        case (u32)USART3:
+            USART_GPIO = GPIOB;
+            USART_Tx = GPIO_Pin_10;
+            USART_Rx = GPIO_Pin_11;
+            break;
 
-    /* USART1 GPIO config */
-    RCC_GPIOClockCmd(GPIOA, ENABLE);
-    /* Configure USART1 Tx (PA.09) as alternate function push-pull */
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+        default:
+            return;
+    }
+
+    /* config USART clock */
+    RCC_USARTClockCmd(USARTx, ENABLE);
+
+    /* USART GPIO config */
+    RCC_GPIOClockCmd(USART_GPIO, ENABLE);
+    /* Configure USART Tx as alternate function push-pull */
+    GPIO_InitStructure.GPIO_Pin = USART_Tx;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-    /* Configure USART1 Rx (PA.10) as input floating */
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+    GPIO_Init(USART_GPIO, &GPIO_InitStructure);
+    /* Configure USART Rx as input*/
+    GPIO_InitStructure.GPIO_Pin = USART_Rx;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
+    GPIO_Init(USART_GPIO, &GPIO_InitStructure);
 
-    /* USART1 mode config */
-    USART_InitStructure.USART_BaudRate = 115200;
+    /* USART mode config */
+    USART_InitStructure.USART_BaudRate = USART_BaudRate;
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
     USART_InitStructure.USART_StopBits = USART_StopBits_1;
     USART_InitStructure.USART_Parity = USART_Parity_No ;
     USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
     USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
-    USART_Init(USART1, &USART_InitStructure);
-    USART_Cmd(USART1, ENABLE);
-}
-
-/*
- * 串口接收中断配置
- */
-void USART_RxInt_Config(bool bEnabled)
-{
-    NVIC_InitTypeDef NVIC_InitStructure;
-    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn; //指定中断源
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;   // 指定响应优先级别
-    NVIC_InitStructure.NVIC_IRQChannelCmd = (bEnabled ? ENABLE : DISABLE);
-    NVIC_Init(&NVIC_InitStructure);
-
-    USART_ITConfig(USART1, USART_IT_RXNE, (bEnabled ? ENABLE : DISABLE));
-}
-
-/*
- * 通过串口发送一个字节
- */
-int USART_putchar(int ch)
-{
-
-    USART_SendData(USART1, (unsigned char) ch);
-    while (!(USART1->SR & USART_FLAG_TXE));
-
-    return (ch);
+    USART_Init(USARTx, &USART_InitStructure);
+    USART_Cmd(USARTx, ENABLE);
 }
 
 /*
@@ -167,7 +163,7 @@ static char *itoa(int value, char *string, int radix)
 /*
  * 通过串口发送格式化字符串
  */
-void USART_printf(char *Data, ...)
+void USARTx_printf(USART_TypeDef* USARTx, char *Data, ...)
 {
     const char *s;
     int d;
@@ -183,12 +179,12 @@ void USART_printf(char *Data, ...)
             switch ( *++Data )
             {
             case 'r':
-                USART_SendData(USART1, 0x0d);
+                USART_SendData(USARTx, 0x0d);
                 Data ++;
                 break;
 
             case 'n':
-                USART_SendData(USART1, 0x0a);
+                USART_SendData(USARTx, 0x0a);
                 Data ++;
                 break;
 
@@ -205,8 +201,8 @@ void USART_printf(char *Data, ...)
                 s = va_arg(ap, const char *);
                 for ( ; *s; s++)
                 {
-                    USART_SendData(USART1, *s);
-                    while ( USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET );
+                    USART_SendData(USARTx, *s);
+                    while ( USART_GetFlagStatus(USARTx, USART_FLAG_TC) == RESET );
                 }
                 Data++;
                 break;
@@ -216,8 +212,8 @@ void USART_printf(char *Data, ...)
                 itoa(d, buf, 10);
                 for (s = buf; *s; s++)
                 {
-                    USART_SendData(USART1, *s);
-                    while ( USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET );
+                    USART_SendData(USARTx, *s);
+                    while ( USART_GetFlagStatus(USARTx, USART_FLAG_TC) == RESET );
                 }
                 Data++;
                 break;
@@ -226,7 +222,7 @@ void USART_printf(char *Data, ...)
                 break;
             }
         } /* end of else if */
-        else USART_SendData(USART1, *Data++);
-        while ( USART_GetFlagStatus(USART1, USART_FLAG_TC) == RESET );
+        else USART_SendData(USARTx, *Data++);
+        while ( USART_GetFlagStatus(USARTx, USART_FLAG_TC) == RESET );
     }
 }

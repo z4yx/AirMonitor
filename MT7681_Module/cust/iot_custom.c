@@ -240,13 +240,16 @@ VOID IoT_Cust_Init(VOID)
 #if (MT7681_POWER_SAVING == 1)
     pIoTMlme->PMLevel = 1;
 #endif
+
+    cnmTimerStartTimer (&IoTCustTimer.custTimer0, 100);
 }
 
 
 
 VOID CustTimer0TimeoutAction(UINT_32 param, UINT_32 param2) 
 {
-	//Printf_High("CustTimer0TimeoutAction\n");
+	// Printf_High("CustTimer0TimeoutAction\n");
+	Yeelink_Task();
 #if (UARTRX_TO_AIR_LEVEL == 2)
 	IoT_Cust_uart2wifi_change_mode_handler();
 #endif

@@ -99,6 +99,8 @@
 
 
 
+#define		AT_CMD_YEELINK_PUB		"YeelinkPub "
+#define		AT_CMD_NTP_QUERY		"NtpQuery "
 
 
 /*Default output value for GPIO0~4*/

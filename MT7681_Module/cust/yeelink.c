@@ -21,6 +21,9 @@
 #include "common.h"
 #include <string.h>
 
+#define DATETIME_BUF_SIZE 24
+#define VALUE_BUF_SIZE    16
+
 const char *http_appkey = YEELINK_APPKEY_HDR;
 
 enum {STATE_IDLE, STATE_DNS, STATE_AIR, STATE_TEMP, STATE_HUMI};
@@ -29,16 +32,16 @@ static int current_state;
 static bool net_waiting;
 
 static struct report_values {
-	const char *datetime;
-	int air;
-	float temp, humi;
+	char datetime[DATETIME_BUF_SIZE];
+	char air[VALUE_BUF_SIZE],temp[VALUE_BUF_SIZE], humi[VALUE_BUF_SIZE];
 }values;
 
 static char dat_buf[128];
 
-const char* build_json(float val)
+const char* build_json(const char* val)
 {
-	sprintf(dat_buf, "{\"timestamp\":\"%s\",\"value\":%f}", values.datetime, val);
+	sprintf(dat_buf, "{\"timestamp\":\"%s\",\"value\":%s}", values.datetime, val);
+	LOG_D("%s", dat_buf);
 	return dat_buf;
 }
 
@@ -48,15 +51,15 @@ void Yeelink_Init()
 	current_state = STATE_IDLE;
 }
 
-int Yeelink_Send(const char *datetime, int air, float temp, float humi)
+int Yeelink_Send(const char *datetime, const char * air, const char * temp, const char * humi)
 {
 	if(current_state != STATE_IDLE)
 		return -1;
 
-	values.datetime = datetime;
-	values.air  = air;
-	values.temp = temp;
-	values.humi = humi;
+	strncpy(values.datetime, datetime, DATETIME_BUF_SIZE-1);
+	strncpy(values.temp, temp, VALUE_BUF_SIZE-1);
+	strncpy(values.air, air, VALUE_BUF_SIZE-1);
+	strncpy(values.humi, humi, VALUE_BUF_SIZE-1);
 
 	current_state = STATE_DNS;
 

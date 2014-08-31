@@ -1048,6 +1048,24 @@ INT16 IoT_parse_ATcommand(PCHAR cmd_buf, INT16 at_cmd_len)
 		reset_cfg();
 		IoT_Cmd_LinkDown(0);   //disable Link Down to fix STA machine keeps SMNT and no reponse
 	}
+
+	/* Format:  AT#NtpQuery -h17.82.253.7+enter */
+	//-h:  IP/Host
+	else if(!memcmp(cmd_buf,AT_CMD_NTP_QUERY,sizeof(AT_CMD_NTP_QUERY)-1))
+	{
+		ret_code = IoT_exec_AT_cmd_ntp_query(cmd_buf, at_cmd_len);
+	}
+
+	/* Format:  AT#YeelinkPub -s2014_08_31T16:02:47 -a100 -t30.5 -h40.2+enter */
+	//-s:  Time
+	//-a:  Air sensor value
+	//-t:  Temperature
+	//-h:  Humidity
+	else if(!memcmp(cmd_buf,AT_CMD_YEELINK_PUB,sizeof(AT_CMD_YEELINK_PUB)-1))
+	{
+		ret_code = IoT_exec_AT_cmd_yeelink_pub(cmd_buf, at_cmd_len);
+	}
+
 #if (ATCMD_SET_SMNT_SUPPORT == 1)
 	/* Format:  AT#Smnt+enter*/
 	else if(!memcmp(cmd_buf,AT_CMD_SET_SMNT,sizeof(AT_CMD_SET_SMNT)-1))

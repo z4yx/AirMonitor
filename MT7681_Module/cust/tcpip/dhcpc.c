@@ -354,6 +354,10 @@ _handle_dhcp(void)
 				uip_ipaddr1(s.default_router), uip_ipaddr2(s.default_router),
 				uip_ipaddr3(s.default_router), uip_ipaddr4(s.default_router));
 
+      Printf_High("@$IP=%d.%d.%d.%d\r\n",
+        uip_ipaddr1(s.ipaddr), uip_ipaddr2(s.ipaddr),
+        uip_ipaddr3(s.ipaddr), uip_ipaddr4(s.ipaddr));
+
 			dhcpc_configured(&s);
 			
 			ws_got_ip();

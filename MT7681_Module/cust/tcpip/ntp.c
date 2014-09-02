@@ -101,6 +101,7 @@ static void ntp_deltatime(int64_t delte)
     now = GetMsTimer() + delte + TIMEZONE*3600;
     LOG_D("delta time: %d", (int)delte);
     LOG_D("current time is %d", (int)now);
+    Printf_High("@$T=%u,%u\r\n", (uint32_t)(now>>32), (uint32_t)now);
 }
 
 static void senddata(void)

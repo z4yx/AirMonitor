@@ -42,5 +42,6 @@ void Timer_16bit_Calc(int freq, uint16_t *period, uint16_t *prescaler);
 
 typedef void (*Task_t)(void);
 
+void MT7681_Task(void);
 
 #endif /* __COMMON__H__ */

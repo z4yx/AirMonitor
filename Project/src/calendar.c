@@ -36,7 +36,7 @@ void Calendar_Init(void)
 
 void Calendar_Sync(void)
 {
-	// ntp_query(NTP_SERVER);
+	MT7681_ntp_query(NTP_SERVER);
 	state = STATE_SYNCING;
 }
 
@@ -62,13 +62,10 @@ const char *Calendar_GetISO8601(void)
 		return NULL;
 }
 
-/* called by ntp module */
-void ntp_deltatime(int64_t delte)
+void Calendar_SetCurrentTime(int64_t cur)
 {
-	offset = delte;
+	offset = cur - GetSystemTick()/1000;
 	state = STATE_SYNC_DONE;
-
-	DBG_MSG("delta time: %d", (int)delte);
-	DBG_MSG("current time is %s", Calendar_GetISO8601());
 }
+
 

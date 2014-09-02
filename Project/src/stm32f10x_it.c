@@ -22,6 +22,7 @@
 extern void IncSysTickCounter(void);
 extern void PWM_TIM2_Interrupt(void);
 extern void Alarm_Interrupt(void);
+extern void MT7681_USART_Interrupt(void);
 
 /** @addtogroup STM32F10x_StdPeriph_Examples
   * @{
@@ -189,11 +190,11 @@ void RTC_IRQHandler(void)
 
 }
 
-void USART1_IRQHandler(void)
+void USART3_IRQHandler(void)
 {
-  // if(USART_GetITStatus(USART1, USART_FLAG_RXNE) == SET){
-  //   HostCtrl_Interrupt();
-  // }
+  if(USART_GetFlagStatus(USART3, USART_FLAG_RXNE) == SET){
+    MT7681_USART_Interrupt();
+  }
 }
 
 /******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/

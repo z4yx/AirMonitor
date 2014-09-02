@@ -27,8 +27,11 @@
 #include "gp2y1010.h"
 #include "calendar.h"
 #include "alarm.h"
+#include "mt7681.h"
 #include <stdlib.h>
 #include <string.h>
+
+const Task_t SystemTasks[] = { MT7681_Task };
 
 enum {STATE_INIT, STATE_ERR, STATE_SYNC, STATE_REPORT, STATE_REPORT_WAIT, STATE_POWEROFF, STATE_WAIT};
 
@@ -47,6 +50,7 @@ static void coreInit(void)
 	SysTick_Init();
 	USARTx_Config(DEBUG_USART, 115200);
 	Alarm_Config();
+	MT7681_Init();
 }
 
 static void measure_and_report()
@@ -68,7 +72,7 @@ static void measure_and_report()
 		}
 	}
 
-	// Yeelink_Send(datetime, air, temp, humi);
+	MT7681_Yeelink_Send(datetime, air, temp, humi);
 }
 
 int main(void)
@@ -84,7 +88,7 @@ int main(void)
 	Alarm_SetInterrupt(ENABLE);
 	Alarm_SetAlarm(REPORT_INTERVAL/1000);
 
-	Delay_ms(1000);
+	Delay_ms(5000);
 
 	DBG_MSG("\r\n\r\n", 0);
 	DBG_MSG("Clock Source: %d", RCC_GetSYSCLKSource());
@@ -102,6 +106,10 @@ int main(void)
 	SysTick_t timeout = 0;
 	while (1)
 	{
+
+		//运行系统中声明的任务
+		for(int i = 0; i < sizeof(SystemTasks)/sizeof(Task_t); i++)
+			(SystemTasks[i])();
 
 		switch(state)
 		{

@@ -8,7 +8,6 @@ typedef int64 int64_t;
 typedef uint64 uint64_t;
 
 #define NTPPort     123
-#define TIMEZONE    (+8)
 
 int ntp_query(const char *host);
 

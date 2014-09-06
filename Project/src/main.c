@@ -88,7 +88,7 @@ int main(void)
 	Alarm_SetInterrupt(ENABLE);
 	Alarm_SetAlarm(REPORT_INTERVAL/1000);
 
-	Delay_ms(5000);
+	Delay_ms(9000);
 
 	DBG_MSG("\r\n\r\n", 0);
 	DBG_MSG("Clock Source: %d", RCC_GetSYSCLKSource());

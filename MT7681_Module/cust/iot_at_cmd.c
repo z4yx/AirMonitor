@@ -1056,6 +1056,12 @@ INT16 IoT_parse_ATcommand(PCHAR cmd_buf, INT16 at_cmd_len)
 		ret_code = IoT_exec_AT_cmd_ntp_query(cmd_buf, at_cmd_len);
 	}
 
+	/* Format:  AT#YeelinkStat+enter */
+	else if(!memcmp(cmd_buf,AT_CMD_YEELINK_STAT,sizeof(AT_CMD_YEELINK_STAT)-1))
+	{
+		ret_code = IoT_exec_AT_cmd_yeelink_stat(cmd_buf, at_cmd_len);
+	}
+
 	/* Format:  AT#YeelinkPub -s2014_08_31T16:02:47 -a100 -t30.5 -h40.2+enter */
 	//-s:  Time
 	//-a:  Air sensor value

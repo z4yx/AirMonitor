@@ -91,3 +91,10 @@ INT32 IoT_exec_AT_cmd_yeelink_pub(PCHAR pCmdBuf, INT16 at_cmd_len)
 
 	return 0;
 }
+
+INT32 IoT_exec_AT_cmd_yeelink_stat(PCHAR pCmdBuf, INT16 at_cmd_len)
+{
+	Yeelink_ReportState();
+
+	return 0;
+}

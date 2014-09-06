@@ -100,6 +100,7 @@
 
 
 #define		AT_CMD_YEELINK_PUB		"YeelinkPub "
+#define		AT_CMD_YEELINK_STAT		"YeelinkStat "
 #define		AT_CMD_NTP_QUERY		"NtpQuery "
 
 

@@ -132,9 +132,9 @@ int main(void)
 				state = STATE_REPORT_WAIT;
 				break;
 			case STATE_REPORT_WAIT:
-				/*if(Yeelink_Idle())
+				if(MT7681_Yeelink_Idle())
 					state = STATE_POWEROFF;
-				else */if(GetSystemTick() - timeout > REPORT_TIMEOUT){
+				else if(GetSystemTick() - timeout > REPORT_TIMEOUT){
 					ERR_MSG("Report timed out", 0);
 					state = STATE_POWEROFF;
 				}

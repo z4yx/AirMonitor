@@ -11,12 +11,19 @@ Ctrl+A
 :exec !! lsx -b -X /Users/zhang/Projects/AirMonitor/MT7681_Module/out/sta/MT7681_sta_header.bin
 */
 
+/*
+AT Commands:
+AT#NtpQuery -h17.82.253.7
+AT#YeelinkPub -s2014_09_06T12:25:41 -t28.29 -a1029 -h58.13
+AT#YeelinkStat -
+*/
+
 enum{STATE_INIT, STATE_SYM1, STATE_RECV};
 
 #define LINEBUF_LEN   512
 static volatile char usart_line_buf[LINEBUF_LEN], output_str_buf[128];
 static volatile int line_buf_ptr;
-static volatile bool data_available;
+static volatile bool data_available, yeelink_working;
 
 static void MT7681_USART_SetInterrupt(void);
 
@@ -24,6 +31,7 @@ void MT7681_Init(void)
 {
     line_buf_ptr = 0;
     usart_line_buf[0] = 0;
+    yeelink_working = false;
     USARTx_Config(MT7681_USART, 115200);
     MT7681_USART_SetInterrupt();
 }
@@ -60,7 +68,13 @@ void MT7681_Yeelink_Send(const char *datetime, int air, float temp, float humi)
     sprintf(output_str_buf, "AT#YeelinkPub -s%s -t%.2f -a%d -h%.2f",
         date_str, temp, air, humi);
     USARTx_printf(MT7681_USART, "%s\r\n", output_str_buf);
+    yeelink_working = true;
     DBG_MSG("%s", output_str_buf);
+}
+
+bool MT7681_Yeelink_Idle(void)
+{
+    return !yeelink_working;
 }
 
 void MT7681_ntp_query(const char *host)
@@ -110,6 +124,11 @@ void MT7681_Task(void)
             uint32_t high, low;
             sscanf(usart_line_buf, "T=%u,%u", &high, &low);
             Calendar_SetCurrentTime(((int64_t)high << 32) | low);
+        }else if(strncmp(usart_line_buf,"YS=",3) == 0){
+            int s;
+            sscanf(usart_line_buf, "YS=%d", &s);
+            if(s == 0)
+                yeelink_working = false;
         }
         data_available = false;
     }

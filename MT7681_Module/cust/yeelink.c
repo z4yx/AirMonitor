@@ -19,6 +19,7 @@
 #include "uip.h"
 #include "webclient.h"
 #include "common.h"
+#include "yeelink.h"
 #include <string.h>
 
 #define DATETIME_BUF_SIZE 24
@@ -73,9 +74,19 @@ int Yeelink_Send(const char *datetime, const char * air, const char * temp, cons
 	return 0;
 }
 
+int Yeelink_GetState(void)
+{
+	return current_state;
+}
+
 bool Yeelink_Idle(void)
 {
 	return STATE_IDLE == current_state;
+}
+
+void Yeelink_ReportState(void)
+{
+	Printf_High("@$YS=%d\r\n", Yeelink_GetState());
 }
 
 void Yeelink_Task(void)
@@ -87,21 +98,25 @@ void Yeelink_Task(void)
 	{
 		case STATE_DNS:
 			current_state = STATE_AIR;
+			Yeelink_ReportState();
 			net_waiting = true;
 			webclient_get(YEELINK_HOSTNAME, 80, YEELINK_AIR_SENSOR, build_json(values.air));
 			break;
 		case STATE_AIR:
 			current_state = STATE_TEMP;
+			Yeelink_ReportState();
 			net_waiting = true;
 			webclient_get(YEELINK_HOSTNAME, 80, YEELINK_TEMP_SENSOR, build_json(values.temp));
 			break;
 		case STATE_TEMP:
 			current_state = STATE_HUMI;
+			Yeelink_ReportState();
 			net_waiting = true;
 			webclient_get(YEELINK_HOSTNAME, 80, YEELINK_HUMI_SENSOR, build_json(values.humi));
 			break;
 		case STATE_HUMI:
 			current_state = STATE_IDLE;
+			Yeelink_ReportState();
 			break;
 	}
 }
